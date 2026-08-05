@@ -2,7 +2,13 @@ import { useState, useEffect } from "react";
 import { supabase, LEAGUE_ID, COMMISSIONER_EMAIL } from "./lib/supabase";
 import { DEFAULT_PLAYERS, THEMES } from "./lib/constants";
 import { calcFilmScore } from "./lib/scoring";
+<<<<<<< Updated upstream
 import { searchTMDB } from "./lib/tmdb";
+=======
+import { searchTMDB, getTMDBBoxOffice, getTMDBWideReleaseDate } from "./lib/tmdb";
+import { getOMDbData, extractRTScores } from "./lib/omdb";
+import { revenueToBoxOfficeTier, isValidRevenue } from "./lib/scoring-utils";
+>>>>>>> Stashed changes
 import {
   dbSet, dbGetPlayers, dbGetLeagueName, dbGetMarxistMode, dbSetMarxistMode,
   dbGetDraft, dbSetDraftPick, dbGetScores, dbSetScore, dbGetMovies, dbAddMovie,
@@ -206,6 +212,125 @@ export default function App() {
     return { updated, skipped, notFound };
   }
 
+<<<<<<< Updated upstream
+=======
+  async function backfillScoring(onProgress, forceRecheck = false) {
+    let boUpdated = 0, boSkipped = 0;
+    let rtUpdated = 0, rtSkipped = 0;
+    const boNotFound = [], rtNotFound = [];
+    const boTooEarly = [], rtTooEarly = [];
+    const BO_MIN_REVENUE = 5_000_000;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    for (let i = 0; i < movies.length; i++) {
+      const film = movies[i];
+      if (onProgress) onProgress(i + 1, movies.length, film);
+      const currentScoring = scoring[film] || {};
+      const hasBO = !!currentScoring.bo;
+      const hasRT = !!currentScoring.criticsRT || !!currentScoring.audienceRT;
+
+      // Capture in local vars — setScoring is batched and won't update state mid-loop
+      let resolvedTmdbId = currentScoring.tmdbId || null;
+      let resolvedReleaseYear = currentScoring.releaseYear || null;
+      let resolvedHasBoxOffice = hasBO;
+
+      // --- Box office ---
+      if (!forceRecheck && hasBO) {
+        boSkipped++;
+      } else {
+        const tmdbResult = await getTMDBBoxOffice(film);
+        const revenue = tmdbResult?.revenue;
+
+        if (tmdbResult?.tmdbId) resolvedTmdbId = tmdbResult.tmdbId;
+        if (tmdbResult?.releaseYear) resolvedReleaseYear = tmdbResult.releaseYear;
+
+        if (revenue && isValidRevenue(revenue)) {
+          if (revenue < BO_MIN_REVENUE) {
+            boTooEarly.push(film);
+          } else {
+            const boTier = revenueToBoxOfficeTier(revenue);
+            if (boTier) {
+              const updatedData = { ...currentScoring, bo: boTier, boRaw: revenue, tmdbId: resolvedTmdbId, releaseYear: resolvedReleaseYear };
+              setScoring(prev => ({ ...prev, [film]: updatedData }));
+              await dbSetScore(film, updatedData);
+              boUpdated++;
+              resolvedHasBoxOffice = true;
+            } else {
+              boNotFound.push(film);
+            }
+          }
+        } else {
+          if (resolvedTmdbId || resolvedReleaseYear) {
+            const updatedData = { ...currentScoring, tmdbId: resolvedTmdbId, releaseYear: resolvedReleaseYear };
+            setScoring(prev => ({ ...prev, [film]: updatedData }));
+            await dbSetScore(film, updatedData);
+          }
+          boNotFound.push(film);
+        }
+      }
+
+      // --- RT scores ---
+      if (!forceRecheck && hasRT) {
+        rtSkipped++;
+      } else {
+        let wideReleaseDate = null;
+        if (resolvedTmdbId) {
+          const wideDateStr = await getTMDBWideReleaseDate(resolvedTmdbId);
+          if (wideDateStr) {
+            wideReleaseDate = new Date(wideDateStr);
+            wideReleaseDate.setHours(0, 0, 0, 0);
+          }
+        }
+
+        if (wideReleaseDate && wideReleaseDate > today) {
+          // Confirmed future release date — too early
+          rtTooEarly.push(film);
+        } else if (!wideReleaseDate && !resolvedHasBoxOffice) {
+          // No US release date AND no box office — not released yet
+          // (catches streaming films like Saturn Return with TBA dates)
+          rtTooEarly.push(film);
+        } else {
+          // Released — try OMDb with year then adjacent years, no open-ended fallback
+          let omdbData = null;
+          if (resolvedReleaseYear) {
+            const year = parseInt(resolvedReleaseYear);
+            omdbData = await getOMDbData(film, String(year));
+            if (!omdbData) omdbData = await getOMDbData(film, String(year - 1));
+            if (!omdbData) omdbData = await getOMDbData(film, String(year + 1));
+          } else {
+            omdbData = await getOMDbData(film);
+          }
+
+          if (omdbData) {
+            const rtScores = extractRTScores(omdbData);
+            if (rtScores.criticsRT || rtScores.audienceRT) {
+              const freshScoring = scoring[film] || {};
+              const updatedData = { ...freshScoring, ...rtScores };
+              setScoring(prev => ({ ...prev, [film]: updatedData }));
+              await dbSetScore(film, updatedData);
+              rtUpdated++;
+            } else {
+              rtNotFound.push(film);
+            }
+          } else {
+            rtNotFound.push(film);
+          }
+        }
+      }
+
+      await new Promise(r => setTimeout(r, 350));
+    }
+
+    const summaryLines = [];
+    if (boUpdated > 0 || boSkipped > 0) summaryLines.push(`Box Office: ${boUpdated} added · ${boSkipped} skipped`);
+    if (rtUpdated > 0 || rtSkipped > 0) summaryLines.push(`RT Scores: ${rtUpdated} added · ${rtSkipped} skipped`);
+    const summary = summaryLines.join(" | ");
+    showToast(summary || "No updates");
+    return { boUpdated, boSkipped, boNotFound, rtUpdated, rtSkipped, rtNotFound, boTooEarly, rtTooEarly };
+  }
+
+>>>>>>> Stashed changes
   const scoringWithMeta = { ...scoring, ...(scoring["_meta"] || {}) };
 
   function getPlayerTotal(player) {

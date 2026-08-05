@@ -77,6 +77,64 @@ export function CommissionerSettings({ leagueName, updateLeagueName, marxistMode
         })()}
       </Card>
 
+<<<<<<< Updated upstream
+=======
+      <SL t={t}>scoring data</SL>
+      <Card t={t} style={{ marginBottom: 24 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <p style={{ fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 4 }}>Fetch box office & Rotten Tomatoes</p>
+            <p style={{ fontSize: 12, color: t.textMuted, lineHeight: 1.5 }}>
+              {scoringRunning && scoringProgress
+                ? `Fetching ${scoringProgress.current}/${scoringProgress.total}: ${scoringProgress.film}…`
+                : `Looks up box office and RT scores for all ${movies.length} films — skips any that already have data.`}
+            </p>
+          </div>
+          <button onClick={runBackfillScoring} disabled={scoringRunning} style={{ fontSize: 13, padding: "8px 16px", borderRadius: 8, border: `1.5px solid ${t.gold}`, background: scoringRunning ? "transparent" : t.gold, color: scoringRunning ? t.gold : "#fff", cursor: scoringRunning ? "default" : "pointer", fontWeight: 600, whiteSpace: "nowrap", marginLeft: 16, opacity: scoringRunning ? 0.7 : 1 }}>
+            {scoringRunning ? "Running…" : "Fetch scoring"}
+          </button>
+        </div>
+        <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 10, fontSize: 12, color: t.textSub, cursor: "pointer" }}>
+          <input type="checkbox" checked={forceRecheckScoring} onChange={e => setForceRecheckScoring(e.target.checked)} />
+          Re-check films that already have scores
+        </label>
+        {scoringResults && (
+          <div style={{ marginTop: 14, paddingTop: 14, borderTop: `0.5px solid ${t.border}` }}>
+            <p style={{ fontSize: 12, fontWeight: 600, color: t.text, marginBottom: 6 }}>Box Office: {scoringResults.boUpdated} added · {scoringResults.boSkipped} skipped</p>
+            <p style={{ fontSize: 12, fontWeight: 600, color: t.text }}>Rotten Tomatoes: {scoringResults.rtUpdated} added · {scoringResults.rtSkipped} skipped</p>
+            {(() => {
+              const tooEarlySet = new Set([...(scoringResults.boTooEarly || []), ...(scoringResults.rtTooEarly || [])]);
+              const tooEarlyFilms = [...tooEarlySet];
+              if (tooEarlyFilms.length === 0) return null;
+              return (
+                <div style={{ marginTop: 12, padding: "10px 12px", background: "#1A0A00", border: "0.5px solid #E65100", borderRadius: 8 }}>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: "#FF8A65", marginBottom: 6 }}>
+                    ⏳ Skipped — too early ({tooEarlyFilms.length} film{tooEarlyFilms.length !== 1 ? "s" : ""})
+                  </p>
+                  <p style={{ fontSize: 11, color: "#FFCCBC", marginBottom: 8, lineHeight: 1.5 }}>
+                    These films had limited/preview data below the threshold. Run fetch again once they have a wide US release.
+                  </p>
+                  <ul style={{ paddingLeft: 16, margin: 0 }}>
+                    {tooEarlyFilms.map(f => {
+                      const boFlag = scoringResults.boTooEarly?.includes(f);
+                      const rtFlag = scoringResults.rtTooEarly?.includes(f);
+                      const reason = boFlag && rtFlag ? "BO + RT" : boFlag ? "Box office" : "RT scores";
+                      return (
+                        <li key={f} style={{ fontSize: 11, color: "#FFCCBC", marginBottom: 4, display: "flex", justifyContent: "space-between", alignItems: "center", maxWidth: 460 }}>
+                          <span>{f}</span>
+                          <span style={{ fontSize: 10, color: "#FF8A65", fontStyle: "italic", marginLeft: 8 }}>{reason} skipped</span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              );
+            })()}
+          </div>
+        )}
+      </Card>
+
+>>>>>>> Stashed changes
       <SL t={t}>marxist mode</SL>
       <Card t={t} style={{ marginBottom: 24 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>

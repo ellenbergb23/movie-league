@@ -211,6 +211,10 @@ async function dbGetMovies() {
   return data?.map(r => r.title) || [];
 }
 async function dbAddMovie(title) { await supabase.from("movies").insert({ league_id: LEAGUE_ID, title }); }
+async function dbDeleteMovie(title) {
+  await supabase.from("movies").delete().eq("league_id", LEAGUE_ID).eq("title", title);
+  await supabase.from("scores").delete().eq("league_id", LEAGUE_ID).eq("film", title);
+}
 async function dbRenameMovie(oldTitle, newTitle) {
   await supabase.from("movies").update({ title: newTitle }).eq("league_id", LEAGUE_ID).eq("title", oldTitle);
   await supabase.from("draft_picks").update({ film: newTitle }).eq("league_id", LEAGUE_ID).eq("film", oldTitle);
@@ -463,6 +467,13 @@ export default function App() {
     showToast("Film renamed");
   }
 
+  async function deleteMovie(title) {
+    setMovies(prev => prev.filter(m => m !== title));
+    setScoring(prev => { const next = { ...prev }; delete next[title]; return next; });
+    await dbDeleteMovie(title);
+    showToast("Film removed");
+  }
+
   async function backfillPosters(onProgress, force = false) {
     let updated = 0, skipped = 0;
     const notFound = [];
@@ -549,7 +560,7 @@ export default function App() {
         {tab === "draft board"  && <DraftBoard draft={draft} players={players} movies={movies} canEdit={canEdit} isCommissioner={isCommissioner} marxistMode={marxistMode} updateDraftPick={updateDraftPick} requireAuth={requireAuth} scoring={scoringWithMeta} goToFilmScoring={goToFilmScoring} t={t} focusPlayer={draftFocusPlayer} addMovie={addMovie} />}
         {tab === "scoring"      && <Scoring scoring={scoringWithMeta} movies={movies} canEdit={canEdit} isCommissioner={isCommissioner} requireAuth={requireAuth} updateScoring={updateScoring} updateScoringRoot={updateScoringRoot} updateOscarField={updateOscarField} updateMovieName={updateMovieName} scoringFilm={scoringFilm} setScoringFilm={setScoringFilm} showToast={showToast} t={t} />}
         {tab === "settings"     && <Settings movies={movies} players={players} canEdit={canEdit} myPlayerName={myPlayerName} marxistMode={marxistMode} updateMovieName={updateMovieName} addMovie={addMovie} renamePlayer={renamePlayer} t={t} showToast={showToast} requireAuth={requireAuth} isCommissioner={isCommissioner} searchTMDB={searchTMDB} scoring={scoringWithMeta} />}
-        {tab === "commissioner" && isCommissioner && <CommissionerSettings leagueName={leagueName} updateLeagueName={updateLeagueName} marxistMode={marxistMode} toggleMarxistMode={toggleMarxistMode} leagueUsers={leagueUsers} players={players} assignPlayer={assignPlayer} t={t} showToast={showToast} movies={movies} backfillPosters={backfillPosters} />}
+        {tab === "commissioner" && isCommissioner && <CommissionerSettings leagueName={leagueName} updateLeagueName={updateLeagueName} marxistMode={marxistMode} toggleMarxistMode={toggleMarxistMode} leagueUsers={leagueUsers} players={players} assignPlayer={assignPlayer} t={t} showToast={showToast} movies={movies} backfillPosters={backfillPosters} scoring={scoringWithMeta} deleteMovie={deleteMovie} />}
       </main>
     </div>
   );
@@ -1011,7 +1022,7 @@ function Settings({ movies, players, canEdit, myPlayerName, marxistMode, updateM
   );
 }
 
-function CommissionerSettings({ leagueName, updateLeagueName, marxistMode, toggleMarxistMode, leagueUsers, players, assignPlayer, t, showToast, movies, backfillPosters }) {
+function CommissionerSettings({ leagueName, updateLeagueName, marxistMode, toggleMarxistMode, leagueUsers, players, assignPlayer, t, showToast, movies, backfillPosters, scoring, deleteMovie }) {
   const [editingLeague, setEditingLeague] = useState(false);
   const [leagueVal, setLeagueVal] = useState(leagueName);
   const [copied, setCopied] = useState(false);
@@ -1059,18 +1070,32 @@ function CommissionerSettings({ leagueName, updateLeagueName, marxistMode, toggl
           <input type="checkbox" checked={forceRecheck} onChange={e => setForceRecheck(e.target.checked)} />
           Re-check films that already have a poster (use this to fix any wrong posters saved previously)
         </label>
-        {posterResults && posterResults.notFound.length > 0 && (
-          <div style={{ marginTop: 14, paddingTop: 14, borderTop: `0.5px solid ${t.border}` }}>
-            <p style={{ fontSize: 12, fontWeight: 600, color: t.text, marginBottom: 8 }}>
-              No exact TMDB match found for {posterResults.notFound.length} film{posterResults.notFound.length !== 1 ? "s" : ""} — add these manually via the search box in Settings:
-            </p>
-            <ul style={{ paddingLeft: 18, margin: 0 }}>
-              {posterResults.notFound.map(f => (
-                <li key={f} style={{ fontSize: 12, color: t.textSub, marginBottom: 3 }}>{f}</li>
-              ))}
-            </ul>
-          </div>
-        )}
+        {posterResults && posterResults.notFound.length > 0 && (() => {
+          // Live filter: drop any film from this list the moment it has a poster_path saved,
+          // even if fixed manually after the fetch ran — no need to re-run the whole thing.
+          const stillMissing = posterResults.notFound.filter(f => !scoring[f]?.poster_path);
+          if (stillMissing.length === 0) return null;
+          return (
+            <div style={{ marginTop: 14, paddingTop: 14, borderTop: `0.5px solid ${t.border}` }}>
+              <p style={{ fontSize: 12, fontWeight: 600, color: t.text, marginBottom: 8 }}>
+                No exact TMDB match found for {stillMissing.length} film{stillMissing.length !== 1 ? "s" : ""} — add these manually via the search box in Settings:
+              </p>
+              <ul style={{ paddingLeft: 18, margin: 0 }}>
+                {stillMissing.map(f => (
+                  <li key={f} style={{ fontSize: 12, color: t.textSub, marginBottom: 3, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, maxWidth: 420 }}>
+                    <span>{f}</span>
+                    <button
+                      onClick={() => { if (window.confirm(`Remove "${f}" from the league? This can't be undone.`)) deleteMovie(f); }}
+                      style={{ fontSize: 10, color: t.red, background: "none", border: "none", cursor: "pointer", padding: "1px 4px", flexShrink: 0 }}
+                    >
+                      remove
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        })()}
       </Card>
 
       <SL t={t}>marxist mode</SL>

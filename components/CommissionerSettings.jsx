@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { SL, Card } from "./ui";
 
-export function CommissionerSettings({ leagueName, updateLeagueName, marxistMode, toggleMarxistMode, leagueUsers, players, assignPlayer, t, showToast, movies, backfillPosters, scoring, deleteMovie }) {
+export function CommissionerSettings({ leagueName, updateLeagueName, marxistMode, toggleMarxistMode, leagueUsers, players, assignPlayer, t, showToast, movies, backfillPosters, backfillScoring, scoring, deleteMovie }) {
   const [editingLeague, setEditingLeague] = useState(false);
   const [leagueVal, setLeagueVal] = useState(leagueName);
   const [copied, setCopied] = useState(false);
@@ -9,6 +9,10 @@ export function CommissionerSettings({ leagueName, updateLeagueName, marxistMode
   const [posterRunning, setPosterRunning] = useState(false);
   const [posterResults, setPosterResults] = useState(null); // { updated, skipped, notFound: [] } or null
   const [forceRecheck, setForceRecheck] = useState(false);
+  const [scoringProgress, setScoringProgress] = useState(null); // { current, total, film, type } or null
+  const [scoringRunning, setScoringRunning] = useState(false);
+  const [scoringResults, setScoringResults] = useState(null);
+  const [forceRecheckScoring, setForceRecheckScoring] = useState(false);
 
   async function runBackfill() {
     setPosterRunning(true);
@@ -17,6 +21,15 @@ export function CommissionerSettings({ leagueName, updateLeagueName, marxistMode
     setPosterRunning(false);
     setPosterProgress(null);
     setPosterResults(results);
+  }
+
+  async function runBackfillScoring() {
+    setScoringRunning(true);
+    setScoringResults(null);
+    const results = await backfillScoring((current, total, film) => setScoringProgress({ current, total, film }), forceRecheckScoring);
+    setScoringRunning(false);
+    setScoringProgress(null);
+    setScoringResults(results);
   }
 
   useEffect(() => { setLeagueVal(leagueName); }, [leagueName]);
@@ -75,6 +88,42 @@ export function CommissionerSettings({ leagueName, updateLeagueName, marxistMode
             </div>
           );
         })()}
+      </Card>
+
+      <SL t={t}>scoring data</SL>
+      <Card t={t} style={{ marginBottom: 24 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <p style={{ fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 4 }}>Fetch box office & Rotten Tomatoes</p>
+            <p style={{ fontSize: 12, color: t.textMuted, lineHeight: 1.5 }}>
+              {scoringRunning && scoringProgress
+                ? `Fetching ${scoringProgress.current}/${scoringProgress.total}: ${scoringProgress.film}…`
+                : `Looks up box office and RT scores for all ${movies.length} films — skips any that already have data.`}
+            </p>
+          </div>
+          <button onClick={runBackfillScoring} disabled={scoringRunning} style={{ fontSize: 13, padding: "8px 16px", borderRadius: 8, border: `1.5px solid ${t.gold}`, background: scoringRunning ? "transparent" : t.gold, color: scoringRunning ? t.gold : "#fff", cursor: scoringRunning ? "default" : "pointer", fontWeight: 600, whiteSpace: "nowrap", marginLeft: 16, opacity: scoringRunning ? 0.7 : 1 }}>
+            {scoringRunning ? "Running…" : "Fetch scoring"}
+          </button>
+        </div>
+        <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 10, fontSize: 12, color: t.textSub, cursor: "pointer" }}>
+          <input type="checkbox" checked={forceRecheckScoring} onChange={e => setForceRecheckScoring(e.target.checked)} />
+          Re-check films that already have scores
+        </label>
+        {scoringResults && (
+          <div style={{ marginTop: 14, paddingTop: 14, borderTop: `0.5px solid ${t.border}` }}>
+            <p style={{ fontSize: 12, fontWeight: 600, color: t.text, marginBottom: 8 }}>
+              Box Office: {scoringResults.boUpdated} added · {scoringResults.boSkipped} skipped
+            </p>
+            <p style={{ fontSize: 12, fontWeight: 600, color: t.text, marginBottom: 8 }}>
+              Rotten Tomatoes: {scoringResults.rtUpdated} added · {scoringResults.rtSkipped} skipped
+            </p>
+            {(scoringResults.boNotFound.length > 0 || scoringResults.rtNotFound.length > 0) && (
+              <p style={{ fontSize: 12, color: t.textMuted, marginTop: 8 }}>
+                ({(new Set([...scoringResults.boNotFound, ...scoringResults.rtNotFound])).size} films had missing/invalid data)
+              </p>
+            )}
+          </div>
+        )}
       </Card>
 
       <SL t={t}>marxist mode</SL>

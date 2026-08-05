@@ -2,7 +2,9 @@ import { useState, useEffect } from "react";
 import { supabase, LEAGUE_ID, COMMISSIONER_EMAIL } from "./lib/supabase";
 import { DEFAULT_PLAYERS, THEMES } from "./lib/constants";
 import { calcFilmScore } from "./lib/scoring";
-import { searchTMDB } from "./lib/tmdb";
+import { searchTMDB, getTMDBBoxOffice } from "./lib/tmdb";
+import { getOMDbData, extractRTScores } from "./lib/omdb";
+import { revenueToBoxOfficeTier, isValidRevenue } from "./lib/scoring-utils";
 import {
   dbSet, dbGetPlayers, dbGetLeagueName, dbGetMarxistMode, dbSetMarxistMode,
   dbGetDraft, dbSetDraftPick, dbGetScores, dbSetScore, dbGetMovies, dbAddMovie,
@@ -206,6 +208,76 @@ export default function App() {
     return { updated, skipped, notFound };
   }
 
+  async function backfillScoring(onProgress, forceRecheck = false) {
+    let boUpdated = 0, boSkipped = 0;
+    let rtUpdated = 0, rtSkipped = 0;
+    const boNotFound = [], rtNotFound = [];
+
+    for (let i = 0; i < movies.length; i++) {
+      const film = movies[i];
+      if (onProgress) onProgress(i + 1, movies.length, film, "box office & Rotten Tomatoes");
+
+      const currentScoring = scoring[film] || {};
+      const hasBO = !!currentScoring.bo;
+      const hasRT = !!currentScoring.criticsRT || !!currentScoring.audienceRT;
+
+      // Fetch box office from TMDB
+      if (!forceRecheck && hasBO) {
+        boSkipped++;
+      } else {
+        const revenue = await getTMDBBoxOffice(film);
+        if (revenue && isValidRevenue(revenue)) {
+          const boTier = revenueToBoxOfficeTier(revenue);
+          if (boTier) {
+            const updatedData = { ...currentScoring, bo: boTier };
+            setScoring(prev => ({ ...prev, [film]: updatedData }));
+            await dbSetScore(film, updatedData);
+            boUpdated++;
+          } else {
+            boNotFound.push(film);
+          }
+        } else {
+          boNotFound.push(film);
+        }
+      }
+
+      // Fetch Rotten Tomatoes from OMDb
+      if (!forceRecheck && hasRT) {
+        rtSkipped++;
+      } else {
+        const omdbData = await getOMDbData(film);
+        if (omdbData) {
+          const rtScores = extractRTScores(omdbData);
+          if (rtScores.criticsRT || rtScores.audienceRT) {
+            const freshScoring = scoring[film] || {};
+            const updatedData = { ...freshScoring, ...rtScores };
+            setScoring(prev => ({ ...prev, [film]: updatedData }));
+            await dbSetScore(film, updatedData);
+            rtUpdated++;
+          } else {
+            rtNotFound.push(film);
+          }
+        } else {
+          rtNotFound.push(film);
+        }
+      }
+
+      await new Promise(r => setTimeout(r, 350)); // rate limit: 350ms between requests
+    }
+
+    const summaryLines = [];
+    if (boUpdated > 0 || boSkipped > 0 || boNotFound.length > 0) {
+      summaryLines.push(`Box Office: ${boUpdated} added · ${boSkipped} skipped`);
+    }
+    if (rtUpdated > 0 || rtSkipped > 0 || rtNotFound.length > 0) {
+      summaryLines.push(`RT Scores: ${rtUpdated} added · ${rtSkipped} skipped`);
+    }
+    const summary = summaryLines.join(" | ");
+    showToast(summary || "No updates");
+
+    return { boUpdated, boSkipped, boNotFound, rtUpdated, rtSkipped, rtNotFound };
+  }
+
   const scoringWithMeta = { ...scoring, ...(scoring["_meta"] || {}) };
 
   function getPlayerTotal(player) {
@@ -266,7 +338,7 @@ export default function App() {
         {tab === "draft board"  && <DraftBoard draft={draft} players={players} movies={movies} canEdit={canEdit} isCommissioner={isCommissioner} marxistMode={marxistMode} updateDraftPick={updateDraftPick} requireAuth={requireAuth} scoring={scoringWithMeta} goToFilmScoring={goToFilmScoring} t={t} focusPlayer={draftFocusPlayer} addMovie={addMovie} />}
         {tab === "scoring"      && <Scoring scoring={scoringWithMeta} movies={movies} canEdit={canEdit} isCommissioner={isCommissioner} requireAuth={requireAuth} updateScoring={updateScoring} updateScoringRoot={updateScoringRoot} updateOscarField={updateOscarField} updateMovieName={updateMovieName} scoringFilm={scoringFilm} setScoringFilm={setScoringFilm} showToast={showToast} t={t} />}
         {tab === "settings"     && <Settings movies={movies} players={players} canEdit={canEdit} myPlayerName={myPlayerName} marxistMode={marxistMode} updateMovieName={updateMovieName} addMovie={addMovie} renamePlayer={renamePlayer} t={t} showToast={showToast} requireAuth={requireAuth} isCommissioner={isCommissioner} searchTMDB={searchTMDB} scoring={scoringWithMeta} />}
-        {tab === "commissioner" && isCommissioner && <CommissionerSettings leagueName={leagueName} updateLeagueName={updateLeagueName} marxistMode={marxistMode} toggleMarxistMode={toggleMarxistMode} leagueUsers={leagueUsers} players={players} assignPlayer={assignPlayer} t={t} showToast={showToast} movies={movies} backfillPosters={backfillPosters} scoring={scoringWithMeta} deleteMovie={deleteMovie} />}
+        {tab === "commissioner" && isCommissioner && <CommissionerSettings leagueName={leagueName} updateLeagueName={updateLeagueName} marxistMode={marxistMode} toggleMarxistMode={toggleMarxistMode} leagueUsers={leagueUsers} players={players} assignPlayer={assignPlayer} t={t} showToast={showToast} movies={movies} backfillPosters={backfillPosters} backfillScoring={backfillScoring} scoring={scoringWithMeta} deleteMovie={deleteMovie} />}
       </main>
     </div>
   );

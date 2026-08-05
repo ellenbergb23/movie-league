@@ -3,6 +3,13 @@ import { BO_TIERS, RT_OPTIONS, RT_AUD_OPTIONS, OSCAR_CATEGORIES } from "../lib/c
 import { calcFilmScore, getFilmOscarStatus, isFilmReleased, getRTPoints, getBOPoints } from "../lib/scoring";
 import { Card, Poster } from "./ui";
 
+function formatRevenue(revenue) {
+  if (!revenue) return "—";
+  if (revenue >= 1_000_000_000) return `$${(revenue / 1_000_000_000).toFixed(2)}bn`;
+  if (revenue >= 1_000_000) return `$${(revenue / 1_000_000).toFixed(1)}m`;
+  return `$${revenue.toLocaleString()}`;
+}
+
 export function Scoring({ scoring, movies, canEdit, isCommissioner, requireAuth, updateScoring, updateScoringRoot, updateOscarField, updateMovieName, scoringFilm, setScoringFilm, showToast, t }) {
   const [film, setFilm] = useState(scoringFilm || movies[0]);
   const [renaming, setRenaming] = useState(false);
@@ -76,6 +83,30 @@ export function Scoring({ scoring, movies, canEdit, isCommissioner, requireAuth,
         <span>Log in to edit scores</span>
         <button onClick={() => requireAuth(() => {})} style={{ fontSize: 12, padding: "5px 12px", borderRadius: 6, border: "none", background: t.gold, color: "#fff", cursor: "pointer", fontWeight: 600 }}>Log in</button>
       </Card>}
+
+      <Card t={t} style={{ marginBottom: 10, background: t.surface2 }}>
+        <span style={lbl}>Stats</span>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+          <div style={{ textAlign: "center", padding: "8px", borderRadius: 6, background: t.surface, border: `0.5px solid ${t.border}` }}>
+            <div style={{ fontSize: 11, color: t.textMuted, marginBottom: 4 }}>Box Office</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: fs.boRaw ? t.text : t.textMuted, fontFamily: "monospace" }}>
+              {fs.boRaw ? formatRevenue(fs.boRaw) : fs.bo ? fs.bo : "—"}
+            </div>
+          </div>
+          <div style={{ textAlign: "center", padding: "8px", borderRadius: 6, background: t.surface, border: `0.5px solid ${t.border}` }}>
+            <div style={{ fontSize: 11, color: t.textMuted, marginBottom: 4 }}>RT Critics</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: fs.criticsRTRaw != null ? t.text : t.textMuted, fontFamily: "monospace" }}>
+              {fs.criticsRTRaw != null ? `${fs.criticsRTRaw}%` : "—"}
+            </div>
+          </div>
+          <div style={{ textAlign: "center", padding: "8px", borderRadius: 6, background: t.surface, border: `0.5px solid ${t.border}` }}>
+            <div style={{ fontSize: 11, color: t.textMuted, marginBottom: 4 }}>RT Audience</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: fs.audienceRTRaw != null ? t.text : t.textMuted, fontFamily: "monospace" }}>
+              {fs.audienceRTRaw != null ? `${fs.audienceRTRaw}%` : "—"}
+            </div>
+          </div>
+        </div>
+      </Card>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
         <Card t={t}>

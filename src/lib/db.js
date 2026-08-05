@@ -70,3 +70,10 @@ export async function dbGetCurrentUser(userId) {
   const { data } = await supabase.from("users").select("*").eq("id", userId).single();
   return data;
 }
+export async function dbGetIR() {
+  const v = await dbGet("ir_slots");
+  return v ? JSON.parse(v) : {};
+}
+export async function dbSetIR(irSlots) {
+  await dbSet("ir_slots", JSON.stringify(irSlots));
+}

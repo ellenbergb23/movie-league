@@ -77,6 +77,24 @@ export function Scoring({ scoring, movies, canEdit, isCommissioner, requireAuth,
         <button onClick={() => requireAuth(() => {})} style={{ fontSize: 12, padding: "5px 12px", borderRadius: 6, border: "none", background: t.gold, color: "#fff", cursor: "pointer", fontWeight: 600 }}>Log in</button>
       </Card>}
 
+      <Card t={t} style={{ marginBottom: 10, background: t.surface2 }}>
+        <span style={lbl}>Score Breakdown</span>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+          <div style={{ textAlign: "center", padding: "8px", borderRadius: 6, background: t.surface, border: `0.5px solid ${t.border}` }}>
+            <div style={{ fontSize: 11, color: t.textMuted, marginBottom: 4 }}>Box Office</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: t.gold, fontFamily: "monospace" }}>{getBOPoints(fs.bo || "")} pts</div>
+          </div>
+          <div style={{ textAlign: "center", padding: "8px", borderRadius: 6, background: t.surface, border: `0.5px solid ${t.border}` }}>
+            <div style={{ fontSize: 11, color: t.textMuted, marginBottom: 4 }}>RT Critics</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: t.gold, fontFamily: "monospace" }}>{getRTPoints(fs.criticsRT || "", "")} pts</div>
+          </div>
+          <div style={{ textAlign: "center", padding: "8px", borderRadius: 6, background: t.surface, border: `0.5px solid ${t.border}` }}>
+            <div style={{ fontSize: 11, color: t.textMuted, marginBottom: 4 }}>RT Audience</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: t.gold, fontFamily: "monospace" }}>{getRTPoints("", fs.audienceRT || "")} pts</div>
+          </div>
+        </div>
+      </Card>
+
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
         <Card t={t}>
           <span style={lbl}>Box office</span>

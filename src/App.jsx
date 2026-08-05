@@ -442,7 +442,7 @@ export default function App() {
       <main style={{ maxWidth: 880, margin: "0 auto", padding: "1.5rem" }}>
         {tab === "leaderboard" && <Leaderboard rankedPlayers={rankedPlayers} getPlayerTotal={getPlayerTotal} draft={draft} scoring={scoringWithMeta} t={t} goToPlayerDraft={goToPlayerDraft} />}
         {tab === "draft board" && <DraftBoard draft={draft} players={players} movies={movies} isCommissioner={isCommissioner} updateDraftPick={updateDraftPick} scoring={scoringWithMeta} goToFilmScoring={goToFilmScoring} t={t} focusPlayer={draftFocusPlayer} />}
-        {tab === "scoring"     && <Scoring scoring={scoringWithMeta} movies={movies} isCommissioner={isCommissioner} updateScoring={updateScoring} updateScoringRoot={updateScoringRoot} updateOscarField={updateOscarField} scoringFilm={scoringFilm} setScoringFilm={setScoringFilm} showToast={showToast} t={t} />}
+        {tab === "scoring"     && <Scoring scoring={scoringWithMeta} movies={movies} isCommissioner={isCommissioner} updateScoring={updateScoring} updateScoringRoot={updateScoringRoot} updateOscarField={updateOscarField} updateMovieName={updateMovieName} scoringFilm={scoringFilm} setScoringFilm={setScoringFilm} showToast={showToast} t={t} />}
         {tab === "all time"    && <AllTime players={players} getPlayerTotal={getPlayerTotal} getAllTimeTotal={getAllTimeTotal} t={t} />}
         {tab === "settings"    && <Settings movies={movies} players={players} isCommissioner={isCommissioner} updateMovieName={updateMovieName} addMovie={addMovie} renamePlayer={renamePlayer} leagueName={leagueName} updateLeagueName={updateLeagueName} t={t} showToast={showToast} />}
       </main>
@@ -557,8 +557,10 @@ function DraftBoard({ draft, players, movies, isCommissioner, updateDraftPick, s
   );
 }
 
-function Scoring({ scoring, movies, isCommissioner, updateScoring, updateScoringRoot, updateOscarField, scoringFilm, setScoringFilm, showToast, t }) {
+function Scoring({ scoring, movies, isCommissioner, updateScoring, updateScoringRoot, updateOscarField, updateMovieName, scoringFilm, setScoringFilm, showToast, t }) {
   const [film, setFilm] = useState(scoringFilm || movies[0]);
+  const [renaming, setRenaming] = useState(false);
+  const [renameVal, setRenameVal] = useState("");
   useEffect(() => { if (scoringFilm) setFilm(scoringFilm); }, [scoringFilm]);
 
   const fs = scoring[film] || {};
@@ -574,10 +576,26 @@ function Scoring({ scoring, movies, isCommissioner, updateScoring, updateScoring
 
   return (
     <div>
-      <div style={{ background: status.winner ? t.goldBg : t.surface, border: status.winner ? `2px solid ${t.gold}` : status.nominated ? `1.5px solid ${t.gold}` : `0.5px solid ${t.border}`, borderRadius: 10, padding: "14px 16px", marginBottom: 14, display: "flex", alignItems: "center", gap: 12 }}>
-        <select value={film} onChange={e => { setFilm(e.target.value); setScoringFilm(e.target.value); }} style={{ ...sel, flex: 1, maxWidth: 340, fontWeight: 600, fontSize: 14 }}>
-          {movies.map(m => <option key={m} value={m}>{m}</option>)}
-        </select>
+      <div style={{ background: status.winner ? t.goldBg : t.surface, border: status.winner ? `2px solid ${t.gold}` : status.nominated ? `1.5px solid ${t.gold}` : `0.5px solid ${t.border}`, borderRadius: 10, padding: "14px 16px", marginBottom: 14 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: renaming ? 10 : 0 }}>
+          <select value={film} onChange={e => { setFilm(e.target.value); setScoringFilm(e.target.value); setRenaming(false); }} style={{ ...sel, flex: 1, maxWidth: 340, fontWeight: 600, fontSize: 14 }}>
+            {movies.map(m => <option key={m} value={m}>{m}</option>)}
+          </select>
+          <span style={{ fontSize: 20, fontWeight: 700, fontFamily: "monospace", color: t.gold }}>{total}</span>
+          {status.winner && <span style={{ fontSize: 11, background: t.gold, color: "#fff", padding: "3px 9px", borderRadius: 5, fontWeight: 700 }}>BEST PICTURE ✦</span>}
+          {status.nominated && !status.winner && <span style={{ fontSize: 11, background: t.goldBg, color: t.gold, padding: "3px 9px", borderRadius: 5, border: `0.5px solid ${t.gold}`, fontWeight: 600 }}>BP NOM</span>}
+          {isCommissioner && !renaming && <button onClick={() => { setRenaming(true); setRenameVal(film); }} style={{ fontSize: 11, color: t.textMuted, background: "none", border: `0.5px solid ${t.border}`, borderRadius: 5, cursor: "pointer", padding: "3px 8px", whiteSpace: "nowrap" }}>rename</button>}
+        </div>
+        {renaming && (
+          <div style={{ display: "flex", gap: 8 }}>
+            <input value={renameVal} onChange={e => setRenameVal(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") { updateMovieName(film, renameVal); setFilm(renameVal); setScoringFilm(renameVal); setRenaming(false); } if (e.key === "Escape") setRenaming(false); }}
+              autoFocus style={{ flex: 1, fontSize: 13, padding: "6px 10px", borderRadius: 6, border: `0.5px solid ${t.borderStrong}`, background: t.surface2, color: t.text }} />
+            <button onClick={() => { updateMovieName(film, renameVal); setFilm(renameVal); setScoringFilm(renameVal); setRenaming(false); }} style={{ fontSize: 12, padding: "6px 14px", borderRadius: 6, border: "none", background: t.gold, color: "#fff", cursor: "pointer", fontWeight: 600 }}>Save</button>
+            <button onClick={() => setRenaming(false)} style={{ fontSize: 12, padding: "6px 10px", borderRadius: 6, border: `0.5px solid ${t.border}`, background: "transparent", color: t.textMuted, cursor: "pointer" }}>Cancel</button>
+          </div>
+        )}
+      </div>
         <span style={{ fontSize: 20, fontWeight: 700, fontFamily: "monospace", color: t.gold }}>{total}</span>
         {status.winner && <span style={{ fontSize: 11, background: t.gold, color: "#fff", padding: "3px 9px", borderRadius: 5, fontWeight: 700 }}>BEST PICTURE ✦</span>}
         {status.nominated && !status.winner && <span style={{ fontSize: 11, background: t.goldBg, color: t.gold, padding: "3px 9px", borderRadius: 5, border: `0.5px solid ${t.gold}`, fontWeight: 600 }}>BP NOM</span>}

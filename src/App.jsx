@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 
 const MOVIES_2026 = [
   "The Odyssey","Avengers: Doomsday","Disclosure Day","Project Hail Mary",
-  "Spiderman: A Brand New Day","Dune: Messiah","Digger","Narnia",
+  "Spiderman: Brand New Day","Dune: Messiah","Digger","Narnia",
   "Minions & Monsters","Social Reckoning","Adventures of Cliff Booth",
   "Hoppers","Josephine","Toy Story 5","Wild Horse Nine","Super Mario Galaxy",
   "The Great Beyond","The Entertainment System is Down","The Mandalorian & Grogu",

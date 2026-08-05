@@ -1,4 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
+import { createClient } from "@supabase/supabase-js";
+
+const SUPABASE_URL = "https://rudchnnifyfkkrkikmfw.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ1ZGNobm5pZnlma2tya2lrbWZ3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU4ODU2NjIsImV4cCI6MjEwMTQ2MTY2Mn0.Y_lrwiFLPVuv51pGd2Pge3RMZMSwkhpZ5AaYa7Xexoo";
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const LEAGUE_ID = "demo2026";
 
 const DEFAULT_MOVIES = [
   "The Odyssey","Avengers: Doomsday","Disclosure Day","Project Hail Mary",
@@ -68,6 +75,17 @@ const YEARS   = ["2023","2024","2025","2026"];
 const PLAYER_COLORS = ["#4A90D9","#A855F7","#22C55E","#F97316","#94A3B8","#EC4899","#EF4444","#14B8A6"];
 const GOLD = "#C9A84C";
 
+const HISTORICAL = {
+  "Ryan Williams": { "2023": 37,  "2024": 97,  "2025": 104 },
+  "Illike":        { "2023": 48,  "2024": 77,  "2025": 106 },
+  "Walker":        { "2023": 0,   "2024": 0,   "2025": 61  },
+  "Nook":          { "2023": 74,  "2024": 134, "2025": 79  },
+  "Ben Hillman":   { "2023": 35,  "2024": 111, "2025": 103 },
+  "Chrinny":       { "2023": 0,   "2024": 0,   "2025": 144 },
+  "Ben E":         { "2023": 23,  "2024": 58,  "2025": 136 },
+  "IRobis":        { "2023": 0,   "2024": 0,   "2025": 113 },
+};
+
 const THEMES = {
   light: {
     bg: "#F7F5F0", surface: "#FFFFFF", surface2: "#F0EDE6",
@@ -102,7 +120,6 @@ function calcFilmScore(film, scoring) {
     if ((fs.oscarNoms?.[i] || []).includes(film)) total += cat.nomPts;
     if ((fs.oscarWinner?.[i] || "") === film) total += cat.winPts;
   });
-  // Bonuses: only if this film is the designated winner
   if (scoring._biggestOpeningFilm === film) total += 1;
   if (scoring._mostNumber1Film === film) total += 1;
   return total;
@@ -123,123 +140,189 @@ function getFilmOscarStatus(film, scoring) {
   };
 }
 
-function getPlayerOscarTotals(player, league) {
+function getPlayerOscarTotals(player, draft, scoring) {
   let noms = 0, wins = 0;
-  (league.draft?.[player] || []).forEach(film => {
+  (draft[player] || []).forEach(film => {
     if (!film) return;
-    const s = getFilmOscarStatus(film, league.scoring);
+    const s = getFilmOscarStatus(film, scoring);
     noms += s.totalNoms; wins += s.totalWins;
   });
   return { noms, wins };
 }
 
-const STORAGE_KEY = "movieleague_v4";
-function loadData() {
-  try { const r = localStorage.getItem(STORAGE_KEY); if (r) return JSON.parse(r); } catch {}
-  return { leagues: {}, currentLeague: null, user: null, darkMode: false };
-}
-function saveData(d) { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(d)); } catch {} }
-
-const DEMO_LEAGUE = {
-  id: "demo2026", name: "The 2026 Film League", year: "2026",
-  commissioner: "Ben Ellenberg", members: PLAYERS, movies: [...DEFAULT_MOVIES],
-  draft: {
-    "Ryan Williams": ["The Odyssey","Minions & Monsters","The Great Beyond","Avatar: The Last Airbender","Godzilla Minus Zero","Pegasus 3","Here Comes the Flood","",""],
-    "Illike":        ["Avengers: Doomsday","Social Reckoning","Adventures of Cliff Booth","Hunger Games: Sunrise on the Reaping","The Devil Wears Prada 2","Paper Tiger","Wildwood","",""],
-    "Walker":        ["Disclosure Day","Adventures of Cliff Booth","The Mandalorian & Grogu","The Dog Stars","1949","Sense & Sensibility","I Swear","",""],
-    "Nook":          ["Project Hail Mary","Hoppers","Fjord","Saturn Return","Nirvanna The Band TSTM","Untitled Jesse Eisenberg Musical","Untitled Damien Chazelle","",""],
-    "Ben Hillman":   ["Spider-Man: Brand New Day","Josephine","Michael","Jackass 5","Master of the Universe","Backrooms","Scary Movie 6","",""],
-    "Chrinny":       ["Dune: Messiah","Toy Story 5","Moana 2","Supergirl: Woman of Tomorrow","Madden","Coyote vs. Acme","Jack of Spades","",""],
-    "Ben E":         ["Digger","Wild Horse Nine","Jumanji 4","Resident Evil","The Cat in the Hat","I Play Rocky","All of a Sudden","",""],
-    "IRobis":        ["Narnia","Super Mario Galaxy","The Drama","Werewulf","Behemoth!","The Only Living Pickpocket in NY","I Love Boosters","",""],
-  },
-  scoring: {},
-  historicalPoints: {
-    "Ryan Williams": { "2023": 37,  "2024": 97,  "2025": 104 },
-    "Illike":        { "2023": 48,  "2024": 77,  "2025": 106 },
-    "Walker":        { "2023": 0,   "2024": 0,   "2025": 61  },
-    "Nook":          { "2023": 74,  "2024": 134, "2025": 79  },
-    "Ben Hillman":   { "2023": 35,  "2024": 111, "2025": 103 },
-    "Chrinny":       { "2023": 0,   "2024": 0,   "2025": 144 },
-    "Ben E":         { "2023": 23,  "2024": 58,  "2025": 136 },
-    "IRobis":        { "2023": 0,   "2024": 0,   "2025": 113 },
-  },
-};
-
-export default function App() {
-  const [data, setData] = useState(() => {
-    const d = loadData();
-    if (!d.leagues["demo2026"]) d.leagues["demo2026"] = DEMO_LEAGUE;
-    if (!d.currentLeague) d.currentLeague = "demo2026";
-    if (!d.user) d.user = { name: "Ben Ellenberg", isCommissioner: true };
-    return d;
+// ── Supabase helpers ──────────────────────────────────────────────────────────
+async function dbGetDraft() {
+  const { data } = await supabase.from("draft_picks").select("*").eq("league_id", LEAGUE_ID);
+  const draft = {};
+  PLAYERS.forEach(p => { draft[p] = Array(9).fill(""); });
+  (data || []).forEach(row => {
+    if (draft[row.player_name]) draft[row.player_name][row.round_index] = row.film || "";
   });
+  return draft;
+}
 
+async function dbSetDraftPick(player, roundIdx, film) {
+  await supabase.from("draft_picks").upsert(
+    { league_id: LEAGUE_ID, player_name: player, round_index: roundIdx, film },
+    { onConflict: "league_id,player_name,round_index" }
+  );
+}
+
+async function dbGetScores() {
+  const { data } = await supabase.from("scores").select("*").eq("league_id", LEAGUE_ID);
+  const scoring = {};
+  (data || []).forEach(row => { scoring[row.film] = row.data; });
+  return scoring;
+}
+
+async function dbSetScore(film, data) {
+  await supabase.from("scores").upsert(
+    { league_id: LEAGUE_ID, film, data, updated_at: new Date().toISOString() },
+    { onConflict: "league_id,film" }
+  );
+}
+
+async function dbGetMovies() {
+  const { data } = await supabase.from("movies").select("title").eq("league_id", LEAGUE_ID).order("created_at");
+  if (!data || data.length === 0) {
+    // Seed default movies on first load
+    await supabase.from("movies").insert(DEFAULT_MOVIES.map(title => ({ league_id: LEAGUE_ID, title })));
+    return [...DEFAULT_MOVIES];
+  }
+  return data.map(r => r.title);
+}
+
+async function dbAddMovie(title) {
+  await supabase.from("movies").insert({ league_id: LEAGUE_ID, title });
+}
+
+async function dbRenameMovie(oldTitle, newTitle) {
+  await supabase.from("movies").update({ title: newTitle }).eq("league_id", LEAGUE_ID).eq("title", oldTitle);
+  await supabase.from("draft_picks").update({ film: newTitle }).eq("league_id", LEAGUE_ID).eq("film", oldTitle);
+  // Update score key
+  const { data } = await supabase.from("scores").select("data").eq("league_id", LEAGUE_ID).eq("film", oldTitle).single();
+  if (data) {
+    await supabase.from("scores").upsert({ league_id: LEAGUE_ID, film: newTitle, data: data.data, updated_at: new Date().toISOString() }, { onConflict: "league_id,film" });
+    await supabase.from("scores").delete().eq("league_id", LEAGUE_ID).eq("film", oldTitle);
+  }
+}
+
+// ── App ───────────────────────────────────────────────────────────────────────
+export default function App() {
+  const [draft, setDraft] = useState(() => { const d = {}; PLAYERS.forEach(p => { d[p] = Array(9).fill(""); }); return d; });
+  const [scoring, setScoring] = useState({});
+  const [movies, setMovies] = useState([...DEFAULT_MOVIES]);
+  const [loading, setLoading] = useState(true);
+  const [darkMode, setDarkMode] = useState(() => localStorage.getItem("darkMode") === "true");
   const [tab, setTab] = useState("leaderboard");
   const [scoringFilm, setScoringFilm] = useState(null);
   const [draftFocusPlayer, setDraftFocusPlayer] = useState(null);
   const [toast, setToast] = useState(null);
 
-  const dark = data.darkMode || false;
-  const t = dark ? THEMES.dark : THEMES.light;
-  const league = data.leagues[data.currentLeague];
-  const isCommissioner = data.user?.isCommissioner || data.user?.name === league?.commissioner;
-  const movies = league?.movies || DEFAULT_MOVIES;
+  const t = darkMode ? THEMES.dark : THEMES.light;
+  const isCommissioner = true; // Will be replaced with auth in Phase 3
 
-  const persist = useCallback((next) => { setData(next); saveData(next); }, []);
+  // Load all data from Supabase on mount
+  useEffect(() => {
+    async function load() {
+      setLoading(true);
+      const [draftData, scoreData, movieData] = await Promise.all([
+        dbGetDraft(), dbGetScores(), dbGetMovies()
+      ]);
+      setDraft(draftData);
+      setScoring(scoreData);
+      setMovies(movieData);
+      setLoading(false);
+    }
+    load();
 
-  function toggleDark() { persist({ ...data, darkMode: !dark }); }
+    // Subscribe to real-time changes
+    const scoreSub = supabase.channel("scores").on("postgres_changes",
+      { event: "*", schema: "public", table: "scores", filter: `league_id=eq.${LEAGUE_ID}` },
+      () => dbGetScores().then(setScoring)
+    ).subscribe();
+
+    const draftSub = supabase.channel("draft").on("postgres_changes",
+      { event: "*", schema: "public", table: "draft_picks", filter: `league_id=eq.${LEAGUE_ID}` },
+      () => dbGetDraft().then(setDraft)
+    ).subscribe();
+
+    const movieSub = supabase.channel("movies").on("postgres_changes",
+      { event: "*", schema: "public", table: "movies", filter: `league_id=eq.${LEAGUE_ID}` },
+      () => dbGetMovies().then(setMovies)
+    ).subscribe();
+
+    return () => { scoreSub.unsubscribe(); draftSub.unsubscribe(); movieSub.unsubscribe(); };
+  }, []);
+
   function showToast(msg) { setToast(msg); setTimeout(() => setToast(null), 2000); }
+  function toggleDark() { setDarkMode(d => { localStorage.setItem("darkMode", !d); return !d; }); }
 
-  function updateScoring(film, field, value) {
-    persist({ ...data, leagues: { ...data.leagues, [data.currentLeague]: { ...league, scoring: { ...league.scoring, [film]: { ...(league.scoring?.[film] || {}), [field]: value } } } } });
+  async function updateDraftPick(player, roundIdx, film) {
+    setDraft(prev => ({ ...prev, [player]: prev[player].map((v, i) => i === roundIdx ? film : v) }));
+    await dbSetDraftPick(player, roundIdx, film);
   }
-  function updateScoringRoot(field, value) {
-    persist({ ...data, leagues: { ...data.leagues, [data.currentLeague]: { ...league, scoring: { ...league.scoring, [field]: value } } } });
+
+  async function updateScoring(film, field, value) {
+    const updated = { ...(scoring[film] || {}), [field]: value };
+    setScoring(prev => ({ ...prev, [film]: updated }));
+    await dbSetScore(film, updated);
+    showToast("Saved");
   }
-  function updateOscarField(film, field, catIndex, value) {
-    const arr = [...((league.scoring?.[film]?.[field]) || [])];
+
+  async function updateScoringRoot(field, value) {
+    const updated = { ...(scoring[field] !== undefined ? scoring : scoring), [field]: value };
+    // Store global bonuses as a special "_meta" score row
+    const meta = { ...(scoring["_meta"] || {}), [field]: value };
+    setScoring(prev => ({ ...prev, _meta: meta, [field]: value }));
+    await dbSetScore("_meta", meta);
+    showToast("Saved");
+  }
+
+  async function updateOscarField(film, field, catIndex, value) {
+    const arr = [...((scoring[film]?.[field]) || [])];
     arr[catIndex] = value;
-    updateScoring(film, field, arr);
+    await updateScoring(film, field, arr);
   }
-  function updateDraftPick(player, roundIdx, value) {
-    persist({ ...data, leagues: { ...data.leagues, [data.currentLeague]: { ...league, draft: { ...league.draft, [player]: league.draft[player].map((v, i) => i === roundIdx ? value : v) } } } });
-  }
-  function addMovie(name) {
-    if (!name.trim() || movies.includes(name.trim())) return;
-    persist({ ...data, leagues: { ...data.leagues, [data.currentLeague]: { ...league, movies: [...movies, name.trim()] } } });
+
+  async function addMovie(title) {
+    if (!title.trim() || movies.includes(title.trim())) return;
+    setMovies(prev => [...prev, title.trim()]);
+    await dbAddMovie(title.trim());
     showToast("Film added");
   }
-  function updateMovieName(oldName, newName) {
+
+  async function updateMovieName(oldName, newName) {
     if (!newName.trim() || newName === oldName) return;
     const n = newName.trim();
-    const newMovies = movies.map(m => m === oldName ? n : m);
-    const newDraft = {};
-    Object.entries(league.draft).forEach(([p, picks]) => { newDraft[p] = picks.map(pk => pk === oldName ? n : pk); });
-    const newScoring = {};
-    Object.entries(league.scoring || {}).forEach(([f, v]) => { newScoring[f === oldName ? n : f] = v; });
-    if (newScoring._biggestOpeningFilm === oldName) newScoring._biggestOpeningFilm = n;
-    if (newScoring._mostNumber1Film === oldName) newScoring._mostNumber1Film = n;
-    persist({ ...data, leagues: { ...data.leagues, [data.currentLeague]: { ...league, movies: newMovies, draft: newDraft, scoring: newScoring } } });
+    setMovies(prev => prev.map(m => m === oldName ? n : m));
+    setDraft(prev => {
+      const next = {};
+      Object.entries(prev).forEach(([p, picks]) => { next[p] = picks.map(pk => pk === oldName ? n : pk); });
+      return next;
+    });
+    setScoring(prev => {
+      const next = { ...prev };
+      if (next[oldName]) { next[n] = next[oldName]; delete next[oldName]; }
+      return next;
+    });
+    await dbRenameMovie(oldName, n);
     showToast("Film renamed");
   }
 
+  // Merge _meta bonuses into scoring for score calculation
+  const scoringWithMeta = { ...scoring, ...scoring["_meta"] };
+
   function getPlayerTotal(player) {
-    return (league.draft?.[player] || []).reduce((sum, film) => sum + (film ? calcFilmScore(film, league.scoring) : 0), 0);
+    return (draft[player] || []).reduce((sum, film) => sum + (film ? calcFilmScore(film, scoringWithMeta) : 0), 0);
   }
   function getAllTimeTotal(player) {
-    const hist = Object.values(league.historicalPoints?.[player] || {}).reduce((s, v) => s + (Number(v) || 0), 0);
+    const hist = Object.values(HISTORICAL[player] || {}).reduce((s, v) => s + (Number(v) || 0), 0);
     return hist + getPlayerTotal(player);
   }
 
-  function goToPlayerDraft(player) {
-    setDraftFocusPlayer(player);
-    setTab("draft board");
-  }
-  function goToFilmScoring(film) {
-    setScoringFilm(film);
-    setTab("scoring");
-  }
+  function goToPlayerDraft(player) { setDraftFocusPlayer(player); setTab("draft board"); }
+  function goToFilmScoring(film) { setScoringFilm(film); setTab("scoring"); }
 
   const rankedPlayers = [...PLAYERS].sort((a, b) => getPlayerTotal(b) - getPlayerTotal(a));
 
@@ -251,13 +334,19 @@ export default function App() {
     .clickable:hover { opacity: 0.75; }
   `;
 
+  if (loading) return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: t.bg, color: t.textMuted, fontFamily: "system-ui", fontSize: 14 }}>
+      Loading league data…
+    </div>
+  );
+
   return (
-    <div style={{ fontFamily: "'Inter', system-ui, sans-serif", minHeight: "100vh", background: t.bg, color: t.text, transition: "background 0.2s, color 0.2s" }}>
+    <div style={{ fontFamily: "'Inter', system-ui, sans-serif", minHeight: "100vh", background: t.bg, color: t.text }}>
       <style>{css}</style>
       <h2 className="sr-only">Movie Fantasy League — 2026 season</h2>
 
       {toast && (
-        <div style={{ position: "fixed", top: 16, right: 16, background: t.gold, color: dark ? "#0A0A0A" : "#fff", padding: "9px 14px", borderRadius: 8, fontSize: 13, fontWeight: 500, zIndex: 999 }}>
+        <div style={{ position: "fixed", top: 16, right: 16, background: t.gold, color: darkMode ? "#0A0A0A" : "#fff", padding: "9px 14px", borderRadius: 8, fontSize: 13, fontWeight: 500, zIndex: 999 }}>
           {toast}
         </div>
       )}
@@ -266,13 +355,12 @@ export default function App() {
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <span style={{ fontSize: 15, fontWeight: 600, color: t.gold }}>🎬</span>
           <span style={{ fontSize: 14, fontWeight: 600, color: t.text }}>Film League</span>
-          <span style={{ fontSize: 12, color: t.textMuted, borderLeft: `0.5px solid ${t.border}`, paddingLeft: 10 }}>{league?.name}</span>
+          <span style={{ fontSize: 12, color: t.textMuted, borderLeft: `0.5px solid ${t.border}`, paddingLeft: 10 }}>The 2026 Film League</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ fontSize: 12, color: t.textSub }}>{data.user?.name}</span>
-          {isCommissioner && <span style={{ fontSize: 11, color: t.gold, border: `0.5px solid ${t.gold}`, padding: "2px 7px", borderRadius: 4 }}>commissioner</span>}
+          <span style={{ fontSize: 11, color: t.gold, border: `0.5px solid ${t.gold}`, padding: "2px 7px", borderRadius: 4 }}>commissioner</span>
           <button onClick={toggleDark} style={{ background: t.surface2, border: `0.5px solid ${t.border}`, borderRadius: 6, padding: "5px 10px", fontSize: 12, color: t.textSub, cursor: "pointer" }}>
-            {dark ? "☀ Light" : "☾ Dark"}
+            {darkMode ? "☀ Light" : "☾ Dark"}
           </button>
         </div>
       </header>
@@ -284,10 +372,10 @@ export default function App() {
       </nav>
 
       <main style={{ maxWidth: 880, margin: "0 auto", padding: "1.5rem" }}>
-        {tab === "leaderboard" && <Leaderboard rankedPlayers={rankedPlayers} getPlayerTotal={getPlayerTotal} league={league} t={t} goToPlayerDraft={goToPlayerDraft} goToFilmScoring={goToFilmScoring} />}
-        {tab === "draft board" && <DraftBoard league={league} movies={movies} isCommissioner={isCommissioner} updateDraftPick={updateDraftPick} calcFilmScore={calcFilmScore} getFilmOscarStatus={getFilmOscarStatus} goToFilmScoring={goToFilmScoring} t={t} focusPlayer={draftFocusPlayer} />}
-        {tab === "scoring"     && <Scoring league={league} movies={movies} isCommissioner={isCommissioner} updateScoring={updateScoring} updateScoringRoot={updateScoringRoot} updateOscarField={updateOscarField} scoringFilm={scoringFilm} setScoringFilm={setScoringFilm} getFilmOscarStatus={getFilmOscarStatus} showToast={showToast} t={t} />}
-        {tab === "all time"    && <AllTime league={league} getPlayerTotal={getPlayerTotal} getAllTimeTotal={getAllTimeTotal} t={t} />}
+        {tab === "leaderboard" && <Leaderboard rankedPlayers={rankedPlayers} getPlayerTotal={getPlayerTotal} draft={draft} scoring={scoringWithMeta} t={t} goToPlayerDraft={goToPlayerDraft} />}
+        {tab === "draft board" && <DraftBoard draft={draft} movies={movies} isCommissioner={isCommissioner} updateDraftPick={updateDraftPick} scoring={scoringWithMeta} goToFilmScoring={goToFilmScoring} t={t} focusPlayer={draftFocusPlayer} />}
+        {tab === "scoring"     && <Scoring scoring={scoringWithMeta} rawScoring={scoring} movies={movies} isCommissioner={isCommissioner} updateScoring={updateScoring} updateScoringRoot={updateScoringRoot} updateOscarField={updateOscarField} scoringFilm={scoringFilm} setScoringFilm={setScoringFilm} showToast={showToast} t={t} />}
+        {tab === "all time"    && <AllTime getPlayerTotal={getPlayerTotal} getAllTimeTotal={getAllTimeTotal} t={t} />}
         {tab === "settings"    && <Settings movies={movies} isCommissioner={isCommissioner} updateMovieName={updateMovieName} addMovie={addMovie} t={t} />}
       </main>
     </div>
@@ -309,7 +397,7 @@ function OscarBadge({ noms, wins, t }) {
   );
 }
 
-function Leaderboard({ rankedPlayers, getPlayerTotal, league, t, goToPlayerDraft, goToFilmScoring }) {
+function Leaderboard({ rankedPlayers, getPlayerTotal, draft, scoring, t, goToPlayerDraft }) {
   const maxPts = Math.max(...rankedPlayers.map(p => getPlayerTotal(p)), 1);
   const medals = ["🥇","🥈","🥉"];
   return (
@@ -320,18 +408,14 @@ function Leaderboard({ rankedPlayers, getPlayerTotal, league, t, goToPlayerDraft
           const pts = getPlayerTotal(player);
           const pct = Math.round((pts / maxPts) * 100);
           const color = PLAYER_COLORS[PLAYERS.indexOf(player)];
-          const { noms, wins } = getPlayerOscarTotals(player, league);
+          const { noms, wins } = getPlayerOscarTotals(player, draft, scoring);
           return (
             <Card key={player} t={t}>
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <span style={{ fontSize: 18, width: 28, textAlign: "center" }}>{medals[i] || `#${i+1}`}</span>
                 <div style={{ flex: 1 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 7 }}>
-                    <button
-                      className="clickable"
-                      onClick={() => goToPlayerDraft(player)}
-                      style={{ fontSize: 14, fontWeight: 600, color: t.text, background: "none", border: "none", cursor: "pointer", padding: 0, textDecoration: "underline", textDecorationColor: t.border, textUnderlineOffset: 3 }}
-                    >
+                    <button className="clickable" onClick={() => goToPlayerDraft(player)} style={{ fontSize: 14, fontWeight: 600, color: t.text, background: "none", border: "none", cursor: "pointer", padding: 0, textDecoration: "underline", textDecorationColor: t.border, textUnderlineOffset: 3 }}>
                       {player}
                     </button>
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -352,7 +436,7 @@ function Leaderboard({ rankedPlayers, getPlayerTotal, league, t, goToPlayerDraft
   );
 }
 
-function DraftBoard({ league, movies, isCommissioner, updateDraftPick, calcFilmScore, getFilmOscarStatus, goToFilmScoring, t, focusPlayer }) {
+function DraftBoard({ draft, movies, isCommissioner, updateDraftPick, scoring, goToFilmScoring, t, focusPlayer }) {
   const sel = { width: "100%", fontSize: 12, padding: "5px 7px", borderRadius: 6, border: `0.5px solid ${t.border}`, background: t.selectBg, color: t.text, cursor: "pointer" };
 
   useEffect(() => {
@@ -367,8 +451,8 @@ function DraftBoard({ league, movies, isCommissioner, updateDraftPick, calcFilmS
       <SectionLabel t={t}>2026 draft board</SectionLabel>
       {PLAYERS.map((player, pi) => {
         const color = PLAYER_COLORS[pi];
-        const picks = league.draft?.[player] || Array(9).fill("");
-        const total = picks.reduce((s, f) => s + (f ? calcFilmScore(f, league.scoring) : 0), 0);
+        const picks = draft[player] || Array(9).fill("");
+        const total = picks.reduce((s, f) => s + (f ? calcFilmScore(f, scoring) : 0), 0);
         const isFocused = focusPlayer === player;
         return (
           <Card key={player} t={t} style={{ marginBottom: 10, borderLeft: `3px solid ${color}`, outline: isFocused ? `2px solid ${t.gold}` : "none", outlineOffset: 2 }}>
@@ -379,8 +463,8 @@ function DraftBoard({ league, movies, isCommissioner, updateDraftPick, calcFilmS
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(175px, 1fr))", gap: 8 }}>
               {ROUNDS.map((round, ri) => {
                 const film = picks[ri] || "";
-                const score = film ? calcFilmScore(film, league.scoring) : null;
-                const status = film ? getFilmOscarStatus(film, league.scoring) : {};
+                const score = film ? calcFilmScore(film, scoring) : null;
+                const status = film ? getFilmOscarStatus(film, scoring) : {};
                 const { nominated, winner } = status;
                 return (
                   <div key={round} style={{ position: "relative", background: winner ? t.goldBg : t.surface2, border: winner ? `2px solid ${t.gold}` : nominated ? `1.5px solid ${t.gold}` : `0.5px solid ${t.border}`, borderRadius: 8, padding: "8px 10px" }}>
@@ -412,17 +496,17 @@ function DraftBoard({ league, movies, isCommissioner, updateDraftPick, calcFilmS
   );
 }
 
-function Scoring({ league, movies, isCommissioner, updateScoring, updateScoringRoot, updateOscarField, scoringFilm, setScoringFilm, getFilmOscarStatus, showToast, t }) {
+function Scoring({ scoring, rawScoring, movies, isCommissioner, updateScoring, updateScoringRoot, updateOscarField, scoringFilm, setScoringFilm, showToast, t }) {
   const [film, setFilm] = useState(scoringFilm || movies[0]);
   useEffect(() => { if (scoringFilm) setFilm(scoringFilm); }, [scoringFilm]);
 
-  const fs = league.scoring?.[film] || {};
-  const total = calcFilmScore(film, league.scoring);
-  const status = getFilmOscarStatus(film, league.scoring);
-  const biggestOpening = league.scoring?._biggestOpeningFilm || "";
-  const mostNumber1 = league.scoring?._mostNumber1Film || "";
+  const fs = scoring[film] || {};
+  const total = calcFilmScore(film, scoring);
+  const status = getFilmOscarStatus(film, scoring);
+  const biggestOpening = scoring._biggestOpeningFilm || "";
+  const mostNumber1 = scoring._mostNumber1Film || "";
 
-  function set(field, val) { updateScoring(film, field, val); showToast("Saved"); }
+  function set(field, val) { updateScoring(film, field, val); }
 
   const sel = { width: "100%", fontSize: 13, padding: "8px 10px", borderRadius: 7, border: `0.5px solid ${t.border}`, background: t.selectBg, color: t.text, cursor: "pointer" };
   const lbl = { fontSize: 11, fontWeight: 600, color: t.textMuted, letterSpacing: "0.08em", textTransform: "uppercase", display: "block", marginBottom: 6 };
@@ -478,12 +562,7 @@ function Scoring({ league, movies, isCommissioner, updateScoring, updateScoringR
                   {val && val !== film && <span style={{ fontSize: 11, color: t.textMuted, marginLeft: 8 }}>currently: {val}</span>}
                 </div>
                 <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: isChecked ? t.gold : t.textSub, fontWeight: isChecked ? 600 : 400, cursor: isCommissioner ? "pointer" : "default" }}>
-                  <input
-                    type="checkbox"
-                    disabled={!isCommissioner}
-                    checked={isChecked}
-                    onChange={e => { updateScoringRoot(key, e.target.checked ? film : ""); showToast("Saved"); }}
-                  />
+                  <input type="checkbox" disabled={!isCommissioner} checked={isChecked} onChange={e => updateScoringRoot(key, e.target.checked ? film : "")} />
                   {isChecked ? "+1 pt awarded" : "Award to this film"}
                 </label>
               </div>
@@ -510,13 +589,11 @@ function Scoring({ league, movies, isCommissioner, updateScoring, updateScoringR
                     <input type="checkbox" disabled={!isCommissioner} checked={isNom} onChange={e => {
                       const cur = fs.oscarNoms?.[i] || [];
                       updateOscarField(film, "oscarNoms", i, e.target.checked ? [...cur, film] : cur.filter(f => f !== film));
-                      showToast("Saved");
                     }} /> Nom
                   </label>
                   <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: t.textSub, cursor: isCommissioner ? "pointer" : "default" }}>
                     <input type="checkbox" disabled={!isCommissioner} checked={isWin} onChange={e => {
                       updateOscarField(film, "oscarWinner", i, e.target.checked ? film : "");
-                      showToast("Saved");
                     }} /> Win
                   </label>
                   {(isNom || isWin) && <span style={{ fontSize: 12, fontFamily: "monospace", color: t.gold, fontWeight: 700 }}>+{(isNom ? cat.nomPts : 0) + (isWin ? cat.winPts : 0)}</span>}
@@ -530,7 +607,7 @@ function Scoring({ league, movies, isCommissioner, updateScoring, updateScoringR
   );
 }
 
-function AllTime({ league, getPlayerTotal, getAllTimeTotal, t }) {
+function AllTime({ getPlayerTotal, getAllTimeTotal, t }) {
   const sorted = [...PLAYERS].sort((a, b) => getAllTimeTotal(b) - getAllTimeTotal(a));
   const medals = ["🥇","🥈","🥉"];
   const th = { padding: "10px 16px", textAlign: "center", color: t.textMuted, fontWeight: 400, fontSize: 13, borderBottom: `0.5px solid ${t.border}` };
@@ -560,7 +637,7 @@ function AllTime({ league, getPlayerTotal, getAllTimeTotal, t }) {
                     </span>
                   </td>
                   {YEARS.map(y => {
-                    const pts = y === "2026" ? getPlayerTotal(player) : (league.historicalPoints?.[player]?.[y] || 0);
+                    const pts = y === "2026" ? getPlayerTotal(player) : (HISTORICAL[player]?.[y] || 0);
                     return <td key={y} style={{ padding: "11px 16px", textAlign: "center", fontFamily: "monospace", color: pts > 0 ? t.text : t.textMuted }}>{pts > 0 ? pts : "—"}</td>;
                   })}
                   <td style={{ padding: "11px 16px", textAlign: "center", fontFamily: "monospace", fontWeight: 700, color: t.gold }}>{getAllTimeTotal(player)}</td>
@@ -590,17 +667,11 @@ function Settings({ movies, isCommissioner, updateMovieName, addMovie, t }) {
       <SectionLabel t={t}>add a new film</SectionLabel>
       <Card t={t} style={{ marginBottom: 20 }}>
         <div style={{ display: "flex", gap: 8 }}>
-          <input
-            value={newFilm}
-            onChange={e => setNewFilm(e.target.value)}
+          <input value={newFilm} onChange={e => setNewFilm(e.target.value)}
             onKeyDown={e => { if (e.key === "Enter" && newFilm.trim()) { addMovie(newFilm); setNewFilm(""); } }}
-            placeholder="Film title..."
-            style={{ ...inputStyle, flex: 1 }}
-          />
-          <button
-            onClick={() => { if (newFilm.trim()) { addMovie(newFilm); setNewFilm(""); } }}
-            style={{ fontSize: 13, padding: "7px 16px", borderRadius: 7, border: "none", background: t.gold, color: "#fff", cursor: "pointer", fontWeight: 600 }}
-          >
+            placeholder="Film title..." style={{ ...inputStyle, flex: 1 }} />
+          <button onClick={() => { if (newFilm.trim()) { addMovie(newFilm); setNewFilm(""); } }}
+            style={{ fontSize: 13, padding: "7px 16px", borderRadius: 7, border: "none", background: t.gold, color: "#fff", cursor: "pointer", fontWeight: 600 }}>
             Add film
           </button>
         </div>
@@ -608,12 +679,8 @@ function Settings({ movies, isCommissioner, updateMovieName, addMovie, t }) {
 
       <SectionLabel t={t}>edit film names</SectionLabel>
       <Card t={t} style={{ marginBottom: 10 }}>
-        <input
-          value={search}
-          onChange={e => { setSearch(e.target.value); setEditing(null); }}
-          placeholder="Search films..."
-          style={{ ...inputStyle, width: "100%" }}
-        />
+        <input value={search} onChange={e => { setSearch(e.target.value); setEditing(null); }}
+          placeholder="Search films..." style={{ ...inputStyle, width: "100%" }} />
         {search && <p style={{ fontSize: 11, color: t.textMuted, marginTop: 6 }}>{filtered.length} result{filtered.length !== 1 ? "s" : ""}</p>}
       </Card>
 

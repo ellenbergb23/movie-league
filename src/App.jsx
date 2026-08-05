@@ -70,40 +70,18 @@ const GOLD = "#C9A84C";
 
 const THEMES = {
   light: {
-    bg:         "#F7F5F0",
-    surface:    "#FFFFFF",
-    surface2:   "#F0EDE6",
-    border:     "#D4CFC4",
-    borderStrong:"#B8B0A0",
-    text:       "#1A1714",
-    textSub:    "#4A4540",
-    textMuted:  "#8C8078",
-    header:     "#FFFFFF",
-    navActive:  "#1A1714",
-    navInactive:"#8C8078",
-    cardHover:  "#FAFAF7",
-    gold:       GOLD,
-    goldBg:     "#FBF5E6",
-    selectBg:   "#F0EDE6",
-    rowAlt:     "#FAF8F5",
+    bg: "#F7F5F0", surface: "#FFFFFF", surface2: "#F0EDE6",
+    border: "#D4CFC4", borderStrong: "#B8B0A0",
+    text: "#1A1714", textSub: "#4A4540", textMuted: "#8C8078",
+    header: "#FFFFFF", navActive: "#1A1714", navInactive: "#8C8078",
+    gold: GOLD, goldBg: "#FBF5E6", selectBg: "#F0EDE6", rowAlt: "#FAF8F5",
   },
   dark: {
-    bg:         "#0A0A0A",
-    surface:    "#141414",
-    surface2:   "#1E1E1E",
-    border:     "#2A2A2A",
-    borderStrong:"#3A3A3A",
-    text:       "#F0EDE8",
-    textSub:    "#A8A29E",
-    textMuted:  "#6B6560",
-    header:     "#0F0F0F",
-    navActive:  GOLD,
-    navInactive:"#6B6560",
-    cardHover:  "#1A1A1A",
-    gold:       GOLD,
-    goldBg:     "#1E1A0E",
-    selectBg:   "#1E1E1E",
-    rowAlt:     "#161616",
+    bg: "#0A0A0A", surface: "#141414", surface2: "#1E1E1E",
+    border: "#2A2A2A", borderStrong: "#3A3A3A",
+    text: "#F0EDE8", textSub: "#A8A29E", textMuted: "#6B6560",
+    header: "#0F0F0F", navActive: GOLD, navInactive: "#6B6560",
+    gold: GOLD, goldBg: "#1E1A0E", selectBg: "#1E1E1E", rowAlt: "#161616",
   },
 };
 
@@ -124,6 +102,9 @@ function calcFilmScore(film, scoring) {
     if ((fs.oscarNoms?.[i] || []).includes(film)) total += cat.nomPts;
     if ((fs.oscarWinner?.[i] || "") === film) total += cat.winPts;
   });
+  // Bonuses: only if this film is the designated winner
+  if (scoring._biggestOpeningFilm === film) total += 1;
+  if (scoring._mostNumber1Film === film) total += 1;
   return total;
 }
 
@@ -152,7 +133,7 @@ function getPlayerOscarTotals(player, league) {
   return { noms, wins };
 }
 
-const STORAGE_KEY = "movieleague_v3";
+const STORAGE_KEY = "movieleague_v4";
 function loadData() {
   try { const r = localStorage.getItem(STORAGE_KEY); if (r) return JSON.parse(r); } catch {}
   return { leagues: {}, currentLeague: null, user: null, darkMode: false };
@@ -172,16 +153,16 @@ const DEMO_LEAGUE = {
     "Ben E":         ["Digger","Wild Horse Nine","Jumanji 4","Resident Evil","The Cat in the Hat","I Play Rocky","All of a Sudden","",""],
     "IRobis":        ["Narnia","Super Mario Galaxy","The Drama","Werewulf","Behemoth!","The Only Living Pickpocket in NY","I Love Boosters","",""],
   },
-   scoring: {},
+  scoring: {},
   historicalPoints: {
-    "Ryan Williams": { "2023": 37, "2024": 97, "2025": 104 },
-    "Illike":        { "2023": 48, "2024": 77, "2025": 106 },
-    "Walker":        { "2023": 0, "2024": 0, "2025": 61 },
-    "Nook":          { "2023": 74, "2024": 134, "2025": 79 },
-    "Ben Hillman":   { "2023": 35, "2024": 111, "2025": 103 },
-    "Chrinny":       { "2023": 0, "2024": 0, "2025": 144 },
-    "Ben E":         { "2023": 23, "2024": 58, "2025": 136 },
-    "IRobis":        { "2023": 0, "2024": 0, "2025": 113 },
+    "Ryan Williams": { "2023": 37,  "2024": 97,  "2025": 104 },
+    "Illike":        { "2023": 48,  "2024": 77,  "2025": 106 },
+    "Walker":        { "2023": 0,   "2024": 0,   "2025": 61  },
+    "Nook":          { "2023": 74,  "2024": 134, "2025": 79  },
+    "Ben Hillman":   { "2023": 35,  "2024": 111, "2025": 103 },
+    "Chrinny":       { "2023": 0,   "2024": 0,   "2025": 144 },
+    "Ben E":         { "2023": 23,  "2024": 58,  "2025": 136 },
+    "IRobis":        { "2023": 0,   "2024": 0,   "2025": 113 },
   },
 };
 
@@ -196,6 +177,7 @@ export default function App() {
 
   const [tab, setTab] = useState("leaderboard");
   const [scoringFilm, setScoringFilm] = useState(null);
+  const [draftFocusPlayer, setDraftFocusPlayer] = useState(null);
   const [toast, setToast] = useState(null);
 
   const dark = data.darkMode || false;
@@ -212,6 +194,9 @@ export default function App() {
   function updateScoring(film, field, value) {
     persist({ ...data, leagues: { ...data.leagues, [data.currentLeague]: { ...league, scoring: { ...league.scoring, [film]: { ...(league.scoring?.[film] || {}), [field]: value } } } } });
   }
+  function updateScoringRoot(field, value) {
+    persist({ ...data, leagues: { ...data.leagues, [data.currentLeague]: { ...league, scoring: { ...league.scoring, [field]: value } } } });
+  }
   function updateOscarField(film, field, catIndex, value) {
     const arr = [...((league.scoring?.[film]?.[field]) || [])];
     arr[catIndex] = value;
@@ -219,6 +204,11 @@ export default function App() {
   }
   function updateDraftPick(player, roundIdx, value) {
     persist({ ...data, leagues: { ...data.leagues, [data.currentLeague]: { ...league, draft: { ...league.draft, [player]: league.draft[player].map((v, i) => i === roundIdx ? value : v) } } } });
+  }
+  function addMovie(name) {
+    if (!name.trim() || movies.includes(name.trim())) return;
+    persist({ ...data, leagues: { ...data.leagues, [data.currentLeague]: { ...league, movies: [...movies, name.trim()] } } });
+    showToast("Film added");
   }
   function updateMovieName(oldName, newName) {
     if (!newName.trim() || newName === oldName) return;
@@ -228,6 +218,8 @@ export default function App() {
     Object.entries(league.draft).forEach(([p, picks]) => { newDraft[p] = picks.map(pk => pk === oldName ? n : pk); });
     const newScoring = {};
     Object.entries(league.scoring || {}).forEach(([f, v]) => { newScoring[f === oldName ? n : f] = v; });
+    if (newScoring._biggestOpeningFilm === oldName) newScoring._biggestOpeningFilm = n;
+    if (newScoring._mostNumber1Film === oldName) newScoring._mostNumber1Film = n;
     persist({ ...data, leagues: { ...data.leagues, [data.currentLeague]: { ...league, movies: newMovies, draft: newDraft, scoring: newScoring } } });
     showToast("Film renamed");
   }
@@ -240,6 +232,15 @@ export default function App() {
     return hist + getPlayerTotal(player);
   }
 
+  function goToPlayerDraft(player) {
+    setDraftFocusPlayer(player);
+    setTab("draft board");
+  }
+  function goToFilmScoring(film) {
+    setScoringFilm(film);
+    setTab("scoring");
+  }
+
   const rankedPlayers = [...PLAYERS].sort((a, b) => getPlayerTotal(b) - getPlayerTotal(a));
 
   const css = `
@@ -247,6 +248,7 @@ export default function App() {
     body { background: ${t.bg}; }
     select { appearance: none; -webkit-appearance: none; }
     input[type=checkbox] { accent-color: ${t.gold}; width: 15px; height: 15px; cursor: pointer; }
+    .clickable:hover { opacity: 0.75; }
   `;
 
   return (
@@ -255,14 +257,14 @@ export default function App() {
       <h2 className="sr-only">Movie Fantasy League — 2026 season</h2>
 
       {toast && (
-        <div style={{ position: "fixed", top: 16, right: 16, background: t.gold, color: dark ? "#0A0A0A" : "#fff", padding: "9px 14px", borderRadius: 8, fontSize: 13, fontWeight: 500, zIndex: 999, boxShadow: "0 2px 12px rgba(0,0,0,0.2)" }}>
+        <div style={{ position: "fixed", top: 16, right: 16, background: t.gold, color: dark ? "#0A0A0A" : "#fff", padding: "9px 14px", borderRadius: 8, fontSize: 13, fontWeight: 500, zIndex: 999 }}>
           {toast}
         </div>
       )}
 
       <header style={{ background: t.header, borderBottom: `0.5px solid ${t.border}`, padding: "0 1.5rem", display: "flex", alignItems: "center", justifyContent: "space-between", height: 54 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ fontSize: 15, fontWeight: 600, color: t.gold, letterSpacing: "0.02em" }}>🎬</span>
+          <span style={{ fontSize: 15, fontWeight: 600, color: t.gold }}>🎬</span>
           <span style={{ fontSize: 14, fontWeight: 600, color: t.text }}>Film League</span>
           <span style={{ fontSize: 12, color: t.textMuted, borderLeft: `0.5px solid ${t.border}`, paddingLeft: 10 }}>{league?.name}</span>
         </div>
@@ -277,16 +279,16 @@ export default function App() {
 
       <nav style={{ background: t.header, borderBottom: `0.5px solid ${t.border}`, padding: "0 1.5rem", display: "flex" }}>
         {["leaderboard","draft board","scoring","all time","settings"].map(tb => (
-          <button key={tb} onClick={() => setTab(tb)} style={{ padding: "12px 16px", fontSize: 13, fontWeight: tab === tb ? 600 : 400, color: tab === tb ? t.navActive : t.navInactive, borderBottom: tab === tb ? `2px solid ${t.navActive}` : "2px solid transparent", background: "none", border: "none", borderBottom: tab === tb ? `2px solid ${t.navActive}` : "2px solid transparent", cursor: "pointer", letterSpacing: "0.01em" }}>{tb}</button>
+          <button key={tb} onClick={() => setTab(tb)} style={{ padding: "12px 16px", fontSize: 13, fontWeight: tab === tb ? 600 : 400, color: tab === tb ? t.navActive : t.navInactive, borderBottom: tab === tb ? `2px solid ${t.navActive}` : "2px solid transparent", background: "none", border: "none", borderBottom: tab === tb ? `2px solid ${t.navActive}` : "2px solid transparent", cursor: "pointer" }}>{tb}</button>
         ))}
       </nav>
 
       <main style={{ maxWidth: 880, margin: "0 auto", padding: "1.5rem" }}>
-        {tab === "leaderboard"  && <Leaderboard rankedPlayers={rankedPlayers} getPlayerTotal={getPlayerTotal} league={league} t={t} />}
-        {tab === "draft board"  && <DraftBoard league={league} movies={movies} isCommissioner={isCommissioner} updateDraftPick={updateDraftPick} calcFilmScore={calcFilmScore} getFilmOscarStatus={getFilmOscarStatus} setScoringFilm={setScoringFilm} setTab={setTab} t={t} />}
-        {tab === "scoring"      && <Scoring league={league} movies={movies} isCommissioner={isCommissioner} updateScoring={updateScoring} updateOscarField={updateOscarField} scoringFilm={scoringFilm} setScoringFilm={setScoringFilm} getFilmOscarStatus={getFilmOscarStatus} showToast={showToast} t={t} />}
-        {tab === "all time"     && <AllTime league={league} getPlayerTotal={getPlayerTotal} getAllTimeTotal={getAllTimeTotal} t={t} />}
-        {tab === "settings"     && <Settings movies={movies} isCommissioner={isCommissioner} updateMovieName={updateMovieName} t={t} />}
+        {tab === "leaderboard" && <Leaderboard rankedPlayers={rankedPlayers} getPlayerTotal={getPlayerTotal} league={league} t={t} goToPlayerDraft={goToPlayerDraft} goToFilmScoring={goToFilmScoring} />}
+        {tab === "draft board" && <DraftBoard league={league} movies={movies} isCommissioner={isCommissioner} updateDraftPick={updateDraftPick} calcFilmScore={calcFilmScore} getFilmOscarStatus={getFilmOscarStatus} goToFilmScoring={goToFilmScoring} t={t} focusPlayer={draftFocusPlayer} />}
+        {tab === "scoring"     && <Scoring league={league} movies={movies} isCommissioner={isCommissioner} updateScoring={updateScoring} updateScoringRoot={updateScoringRoot} updateOscarField={updateOscarField} scoringFilm={scoringFilm} setScoringFilm={setScoringFilm} getFilmOscarStatus={getFilmOscarStatus} showToast={showToast} t={t} />}
+        {tab === "all time"    && <AllTime league={league} getPlayerTotal={getPlayerTotal} getAllTimeTotal={getAllTimeTotal} t={t} />}
+        {tab === "settings"    && <Settings movies={movies} isCommissioner={isCommissioner} updateMovieName={updateMovieName} addMovie={addMovie} t={t} />}
       </main>
     </div>
   );
@@ -295,11 +297,9 @@ export default function App() {
 function SectionLabel({ children, t }) {
   return <p style={{ fontSize: 11, fontWeight: 600, color: t.textMuted, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 14 }}>{children}</p>;
 }
-
 function Card({ children, t, style = {} }) {
   return <div style={{ background: t.surface, border: `0.5px solid ${t.border}`, borderRadius: 10, padding: "14px 16px", ...style }}>{children}</div>;
 }
-
 function OscarBadge({ noms, wins, t }) {
   if (!noms && !wins) return null;
   return (
@@ -309,28 +309,12 @@ function OscarBadge({ noms, wins, t }) {
   );
 }
 
-function FilmPill({ film, status, t, compact }) {
-  const { nominated, winner } = status || {};
-  return (
-    <div style={{
-      position: "relative",
-      background: winner ? t.goldBg : t.surface2,
-      border: winner ? `2px solid ${t.gold}` : nominated ? `1.5px solid ${t.gold}` : `0.5px solid ${t.border}`,
-      borderRadius: 8,
-      padding: compact ? "7px 10px" : "10px 12px",
-    }}>
-      {winner && <span style={{ position: "absolute", top: -1, right: 8, fontSize: 9, background: t.gold, color: "#fff", padding: "1px 6px", borderRadius: "0 0 4px 4px", fontWeight: 700, letterSpacing: "0.06em" }}>BEST PICTURE ✦</span>}
-      {nominated && !winner && <span style={{ position: "absolute", top: -1, right: 8, fontSize: 9, background: t.goldBg, color: t.gold, padding: "1px 6px", borderRadius: "0 0 4px 4px", border: `0.5px solid ${t.gold}`, fontWeight: 600, letterSpacing: "0.04em" }}>BP NOM</span>}
-    </div>
-  );
-}
-
-function Leaderboard({ rankedPlayers, getPlayerTotal, league, t }) {
+function Leaderboard({ rankedPlayers, getPlayerTotal, league, t, goToPlayerDraft, goToFilmScoring }) {
   const maxPts = Math.max(...rankedPlayers.map(p => getPlayerTotal(p)), 1);
   const medals = ["🥇","🥈","🥉"];
   return (
     <div>
-      <SectionLabel t={t}>2026 standings</SectionLabel>
+      <SectionLabel t={t}>2026 standings · click a name to view their draft</SectionLabel>
       <div style={{ display: "grid", gap: 8 }}>
         {rankedPlayers.map((player, i) => {
           const pts = getPlayerTotal(player);
@@ -343,7 +327,13 @@ function Leaderboard({ rankedPlayers, getPlayerTotal, league, t }) {
                 <span style={{ fontSize: 18, width: 28, textAlign: "center" }}>{medals[i] || `#${i+1}`}</span>
                 <div style={{ flex: 1 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 7 }}>
-                    <span style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{player}</span>
+                    <button
+                      className="clickable"
+                      onClick={() => goToPlayerDraft(player)}
+                      style={{ fontSize: 14, fontWeight: 600, color: t.text, background: "none", border: "none", cursor: "pointer", padding: 0, textDecoration: "underline", textDecorationColor: t.border, textUnderlineOffset: 3 }}
+                    >
+                      {player}
+                    </button>
                     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                       <OscarBadge noms={noms} wins={wins} t={t} />
                       <span style={{ fontSize: 16, fontWeight: 700, fontFamily: "monospace", color: t.gold }}>{pts}</span>
@@ -362,8 +352,16 @@ function Leaderboard({ rankedPlayers, getPlayerTotal, league, t }) {
   );
 }
 
-function DraftBoard({ league, movies, isCommissioner, updateDraftPick, calcFilmScore, getFilmOscarStatus, setScoringFilm, setTab, t }) {
+function DraftBoard({ league, movies, isCommissioner, updateDraftPick, calcFilmScore, getFilmOscarStatus, goToFilmScoring, t, focusPlayer }) {
   const sel = { width: "100%", fontSize: 12, padding: "5px 7px", borderRadius: 6, border: `0.5px solid ${t.border}`, background: t.selectBg, color: t.text, cursor: "pointer" };
+
+  useEffect(() => {
+    if (focusPlayer) {
+      const el = document.getElementById(`player-${focusPlayer.replace(/\s/g, "-")}`);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [focusPlayer]);
+
   return (
     <div>
       <SectionLabel t={t}>2026 draft board</SectionLabel>
@@ -371,9 +369,10 @@ function DraftBoard({ league, movies, isCommissioner, updateDraftPick, calcFilmS
         const color = PLAYER_COLORS[pi];
         const picks = league.draft?.[player] || Array(9).fill("");
         const total = picks.reduce((s, f) => s + (f ? calcFilmScore(f, league.scoring) : 0), 0);
+        const isFocused = focusPlayer === player;
         return (
-          <Card key={player} t={t} style={{ marginBottom: 10, borderLeft: `3px solid ${color}` }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+          <Card key={player} t={t} style={{ marginBottom: 10, borderLeft: `3px solid ${color}`, outline: isFocused ? `2px solid ${t.gold}` : "none", outlineOffset: 2 }}>
+            <div id={`player-${player.replace(/\s/g, "-")}`} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
               <span style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{player}</span>
               <span style={{ fontSize: 13, fontFamily: "monospace", color: t.gold, fontWeight: 600 }}>{total} pts</span>
             </div>
@@ -385,7 +384,7 @@ function DraftBoard({ league, movies, isCommissioner, updateDraftPick, calcFilmS
                 const { nominated, winner } = status;
                 return (
                   <div key={round} style={{ position: "relative", background: winner ? t.goldBg : t.surface2, border: winner ? `2px solid ${t.gold}` : nominated ? `1.5px solid ${t.gold}` : `0.5px solid ${t.border}`, borderRadius: 8, padding: "8px 10px" }}>
-                    {winner && <span style={{ position: "absolute", top: -1, right: 6, fontSize: 9, background: t.gold, color: "#fff", padding: "1px 5px", borderRadius: "0 0 4px 4px", fontWeight: 700, letterSpacing: "0.04em" }}>BEST PIC ✦</span>}
+                    {winner && <span style={{ position: "absolute", top: -1, right: 6, fontSize: 9, background: t.gold, color: "#fff", padding: "1px 5px", borderRadius: "0 0 4px 4px", fontWeight: 700 }}>BEST PIC ✦</span>}
                     {nominated && !winner && <span style={{ position: "absolute", top: -1, right: 6, fontSize: 9, background: t.goldBg, color: t.gold, padding: "1px 5px", borderRadius: "0 0 4px 4px", border: `0.5px solid ${t.gold}`, fontWeight: 600 }}>BP NOM</span>}
                     <div style={{ fontSize: 10, color: t.textMuted, marginBottom: 5, fontWeight: 600, letterSpacing: "0.06em" }}>RD {round}</div>
                     {isCommissioner ? (
@@ -399,7 +398,7 @@ function DraftBoard({ league, movies, isCommissioner, updateDraftPick, calcFilmS
                     {film && score !== null && (
                       <div style={{ marginTop: 6, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                         <span style={{ fontSize: 11, fontFamily: "monospace", color: t.textSub }}>{score} pts</span>
-                        <button onClick={() => { setScoringFilm(film); setTab("scoring"); }} style={{ fontSize: 11, color: t.gold, background: "none", border: "none", cursor: "pointer", padding: 0 }}>edit →</button>
+                        <button onClick={() => goToFilmScoring(film)} style={{ fontSize: 11, color: t.gold, background: "none", border: "none", cursor: "pointer", padding: 0, fontWeight: 600 }}>scoring →</button>
                       </div>
                     )}
                   </div>
@@ -413,13 +412,15 @@ function DraftBoard({ league, movies, isCommissioner, updateDraftPick, calcFilmS
   );
 }
 
-function Scoring({ league, movies, isCommissioner, updateScoring, updateOscarField, scoringFilm, setScoringFilm, getFilmOscarStatus, showToast, t }) {
+function Scoring({ league, movies, isCommissioner, updateScoring, updateScoringRoot, updateOscarField, scoringFilm, setScoringFilm, getFilmOscarStatus, showToast, t }) {
   const [film, setFilm] = useState(scoringFilm || movies[0]);
   useEffect(() => { if (scoringFilm) setFilm(scoringFilm); }, [scoringFilm]);
 
   const fs = league.scoring?.[film] || {};
   const total = calcFilmScore(film, league.scoring);
   const status = getFilmOscarStatus(film, league.scoring);
+  const biggestOpening = league.scoring?._biggestOpeningFilm || "";
+  const mostNumber1 = league.scoring?._mostNumber1Film || "";
 
   function set(field, val) { updateScoring(film, field, val); showToast("Saved"); }
 
@@ -461,6 +462,35 @@ function Scoring({ league, movies, isCommissioner, updateScoring, updateOscarFie
           <p style={{ marginTop: 8, fontSize: 13, color: t.gold, fontFamily: "monospace", fontWeight: 600 }}>{getRTPoints(fs.criticsRT || "", fs.audienceRT || "")} pts</p>
         </Card>
       </div>
+
+      <Card t={t} style={{ marginBottom: 10 }}>
+        <span style={lbl}>Season bonuses · +1 pt each · one film only</span>
+        <div style={{ display: "grid", gap: 8 }}>
+          {[
+            { label: "Biggest Opening Weekend", key: "_biggestOpeningFilm", val: biggestOpening },
+            { label: "Most #1 Box Office Weeks", key: "_mostNumber1Film", val: mostNumber1 },
+          ].map(({ label, key, val }) => {
+            const isChecked = val === film;
+            return (
+              <div key={key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: isChecked ? t.goldBg : t.surface2, borderRadius: 8, border: isChecked ? `1px solid ${t.gold}` : `0.5px solid ${t.border}` }}>
+                <div>
+                  <span style={{ fontSize: 13, color: t.text, fontWeight: 500 }}>{label}</span>
+                  {val && val !== film && <span style={{ fontSize: 11, color: t.textMuted, marginLeft: 8 }}>currently: {val}</span>}
+                </div>
+                <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: isChecked ? t.gold : t.textSub, fontWeight: isChecked ? 600 : 400, cursor: isCommissioner ? "pointer" : "default" }}>
+                  <input
+                    type="checkbox"
+                    disabled={!isCommissioner}
+                    checked={isChecked}
+                    onChange={e => { updateScoringRoot(key, e.target.checked ? film : ""); showToast("Saved"); }}
+                  />
+                  {isChecked ? "+1 pt awarded" : "Award to this film"}
+                </label>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
 
       <Card t={t}>
         <span style={lbl}>Oscar nominations & wins</span>
@@ -544,33 +574,74 @@ function AllTime({ league, getPlayerTotal, getAllTimeTotal, t }) {
   );
 }
 
-function Settings({ movies, isCommissioner, updateMovieName, t }) {
+function Settings({ movies, isCommissioner, updateMovieName, addMovie, t }) {
   const [editing, setEditing] = useState(null);
   const [editVal, setEditVal] = useState("");
+  const [newFilm, setNewFilm] = useState("");
+  const [search, setSearch] = useState("");
+
   if (!isCommissioner) return <Card t={t} style={{ fontSize: 13, color: t.textSub }}>Only the commissioner can edit settings.</Card>;
+
+  const filtered = movies.filter(m => m.toLowerCase().includes(search.toLowerCase()));
+  const inputStyle = { fontSize: 13, padding: "7px 10px", borderRadius: 7, border: `0.5px solid ${t.borderStrong}`, background: t.surface2, color: t.text };
+
   return (
     <div>
+      <SectionLabel t={t}>add a new film</SectionLabel>
+      <Card t={t} style={{ marginBottom: 20 }}>
+        <div style={{ display: "flex", gap: 8 }}>
+          <input
+            value={newFilm}
+            onChange={e => setNewFilm(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter" && newFilm.trim()) { addMovie(newFilm); setNewFilm(""); } }}
+            placeholder="Film title..."
+            style={{ ...inputStyle, flex: 1 }}
+          />
+          <button
+            onClick={() => { if (newFilm.trim()) { addMovie(newFilm); setNewFilm(""); } }}
+            style={{ fontSize: 13, padding: "7px 16px", borderRadius: 7, border: "none", background: t.gold, color: "#fff", cursor: "pointer", fontWeight: 600 }}
+          >
+            Add film
+          </button>
+        </div>
+      </Card>
+
       <SectionLabel t={t}>edit film names</SectionLabel>
-      <div style={{ background: t.surface, border: `0.5px solid ${t.border}`, borderRadius: 10, overflow: "hidden" }}>
-        {movies.map((film, i) => (
-          <div key={film} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 16px", borderBottom: i < movies.length - 1 ? `0.5px solid ${t.border}` : "none", background: i % 2 === 0 ? t.surface : t.rowAlt }}>
-            {editing === film ? (
-              <>
-                <input value={editVal} onChange={e => setEditVal(e.target.value)}
-                  onKeyDown={e => { if (e.key === "Enter") { updateMovieName(film, editVal); setEditing(null); } if (e.key === "Escape") setEditing(null); }}
-                  autoFocus style={{ flex: 1, fontSize: 13, padding: "5px 9px", borderRadius: 6, border: `0.5px solid ${t.borderStrong}`, background: t.surface2, color: t.text }} />
-                <button onClick={() => { updateMovieName(film, editVal); setEditing(null); }} style={{ fontSize: 12, padding: "5px 12px", borderRadius: 6, border: `0.5px solid ${t.border}`, background: t.gold, color: "#fff", cursor: "pointer", fontWeight: 600 }}>Save</button>
-                <button onClick={() => setEditing(null)} style={{ fontSize: 12, padding: "5px 10px", borderRadius: 6, border: `0.5px solid ${t.border}`, background: "transparent", color: t.textMuted, cursor: "pointer" }}>Cancel</button>
-              </>
-            ) : (
-              <>
-                <span style={{ flex: 1, fontSize: 13, color: t.text }}>{film}</span>
-                <button onClick={() => { setEditing(film); setEditVal(film); }} style={{ fontSize: 12, color: t.gold, background: "none", border: "none", cursor: "pointer", padding: "2px 6px" }}>rename</button>
-              </>
-            )}
-          </div>
-        ))}
-      </div>
+      <Card t={t} style={{ marginBottom: 10 }}>
+        <input
+          value={search}
+          onChange={e => { setSearch(e.target.value); setEditing(null); }}
+          placeholder="Search films..."
+          style={{ ...inputStyle, width: "100%" }}
+        />
+        {search && <p style={{ fontSize: 11, color: t.textMuted, marginTop: 6 }}>{filtered.length} result{filtered.length !== 1 ? "s" : ""}</p>}
+      </Card>
+
+      {filtered.length > 0 && (
+        <div style={{ background: t.surface, border: `0.5px solid ${t.border}`, borderRadius: 10, overflow: "hidden" }}>
+          {filtered.map((film, i) => (
+            <div key={film} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 16px", borderBottom: i < filtered.length - 1 ? `0.5px solid ${t.border}` : "none", background: i % 2 === 0 ? t.surface : t.rowAlt }}>
+              {editing === film ? (
+                <>
+                  <input value={editVal} onChange={e => setEditVal(e.target.value)}
+                    onKeyDown={e => { if (e.key === "Enter") { updateMovieName(film, editVal); setEditing(null); setSearch(""); } if (e.key === "Escape") setEditing(null); }}
+                    autoFocus style={{ flex: 1, fontSize: 13, padding: "5px 9px", borderRadius: 6, border: `0.5px solid ${t.borderStrong}`, background: t.surface2, color: t.text }} />
+                  <button onClick={() => { updateMovieName(film, editVal); setEditing(null); setSearch(""); }} style={{ fontSize: 12, padding: "5px 12px", borderRadius: 6, border: "none", background: t.gold, color: "#fff", cursor: "pointer", fontWeight: 600 }}>Save</button>
+                  <button onClick={() => setEditing(null)} style={{ fontSize: 12, padding: "5px 10px", borderRadius: 6, border: `0.5px solid ${t.border}`, background: "transparent", color: t.textMuted, cursor: "pointer" }}>Cancel</button>
+                </>
+              ) : (
+                <>
+                  <span style={{ flex: 1, fontSize: 13, color: t.text }}>{film}</span>
+                  <button onClick={() => { setEditing(film); setEditVal(film); }} style={{ fontSize: 12, color: t.gold, background: "none", border: "none", cursor: "pointer", padding: "2px 6px" }}>rename</button>
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      {search && filtered.length === 0 && (
+        <p style={{ fontSize: 13, color: t.textMuted, textAlign: "center", padding: "20px 0" }}>No films match "{search}"</p>
+      )}
     </div>
   );
 }

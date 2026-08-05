@@ -1,5 +1,5 @@
 import { PLAYER_COLORS, DEFAULT_PLAYERS } from "../lib/constants";
-import { getPlayerOscarTotals } from "../lib/scoring";
+import { getPlayerOscarTotals, getPlayerReleaseStats } from "../lib/scoring";
 import { SL, Card, OscarBadge } from "./ui";
 
 export function Leaderboard({ rankedPlayers, getPlayerTotal, draft, scoring, t, goToPlayerDraft }) {
@@ -14,6 +14,7 @@ export function Leaderboard({ rankedPlayers, getPlayerTotal, draft, scoring, t, 
           const pct = Math.round((pts / maxPts) * 100);
           const color = PLAYER_COLORS[DEFAULT_PLAYERS.indexOf(player) % PLAYER_COLORS.length];
           const { noms, wins } = getPlayerOscarTotals(player, draft, scoring);
+          const { released, unreleased, avgScore } = getPlayerReleaseStats(player, draft, scoring);
           return (
             <Card key={player} t={t}>
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -28,6 +29,13 @@ export function Leaderboard({ rankedPlayers, getPlayerTotal, draft, scoring, t, 
                   </div>
                   <div style={{ height: 3, background: t.surface2, borderRadius: 2, overflow: "hidden" }}>
                     <div style={{ height: "100%", width: `${pct}%`, background: color, borderRadius: 2 }} />
+                  </div>
+                  <div style={{ display: "flex", gap: 8, marginTop: 6, fontSize: 11, color: t.textMuted }}>
+                    <span>{released} released</span>
+                    <span>·</span>
+                    <span>{unreleased} unreleased</span>
+                    <span>·</span>
+                    <span>avg {avgScore !== null ? avgScore.toFixed(1) : "—"} pts</span>
                   </div>
                 </div>
               </div>

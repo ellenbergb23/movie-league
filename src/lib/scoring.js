@@ -19,6 +19,7 @@ export function calcFilmScore(film, scoring) {
   });
   if (scoring._biggestOpeningFilm === film) total += 1;
   if (scoring._mostNumber1Film === film) total += 1;
+  if (fs.seenFilm) total += 1;
   return total;
 }
 
@@ -47,6 +48,21 @@ export function getPlayerOscarTotals(player, draft, scoring) {
   return { noms, wins };
 }
 
+export function getPlayerReleaseStats(player, draft, scoring) {
+  const films = (draft[player] || []).filter(Boolean);
+  let released = 0, unreleased = 0, releasedTotal = 0;
+  films.forEach(film => {
+    if (isFilmReleased(film, scoring)) {
+      released++;
+      releasedTotal += calcFilmScore(film, scoring);
+    } else {
+      unreleased++;
+    }
+  });
+  const avgScore = released > 0 ? releasedTotal / released : null;
+  return { released, unreleased, avgScore };
+}
+
 export function isFilmReleased(film, scoring) {
   const fs = scoring?.[film];
   if (!fs) return false;
@@ -54,6 +70,7 @@ export function isFilmReleased(film, scoring) {
   if (fs.bo) return true;
   if (fs.criticsRT) return true;
   if (fs.audienceRT) return true;
+  if (fs.seenFilm) return true;
   if ((fs.oscarNoms || []).some(arr => (arr || []).length > 0)) return true;
   if ((fs.oscarWinner || []).some(w => w)) return true;
   return false;

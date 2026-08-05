@@ -52,7 +52,7 @@ export function CommissionerSettings({ leagueName, updateLeagueName, marxistMode
         {posterResults && posterResults.notFound.length > 0 && (() => {
           // Live filter: drop any film from this list the moment it has a poster_path saved,
           // even if fixed manually after the fetch ran — no need to re-run the whole thing.
-          const stillMissing = posterResults.notFound.filter(f => !scoring[f]?.poster_path);
+          const stillMissing = posterResults.notFound.filter(f => movies.includes(f) && !scoring[f]?.poster_path);
           if (stillMissing.length === 0) return null;
           return (
             <div style={{ marginTop: 14, paddingTop: 14, borderTop: `0.5px solid ${t.border}` }}>

@@ -7,16 +7,20 @@ export function Scoring({ scoring, movies, canEdit, isCommissioner, requireAuth,
   const [film, setFilm] = useState(scoringFilm || movies[0]);
   const [renaming, setRenaming] = useState(false);
   const [renameVal, setRenameVal] = useState("");
-  useEffect(() => { if (scoringFilm) setFilm(scoringFilm); }, [scoringFilm]);
+  const [filmSearch, setFilmSearch] = useState(film || "");
+  const [filmSearchOpen, setFilmSearchOpen] = useState(false);
+  useEffect(() => { if (scoringFilm) { setFilm(scoringFilm); setFilmSearch(scoringFilm); } }, [scoringFilm]);
 
   const fs = scoring[film] || {};
   const total = calcFilmScore(film, scoring);
   const status = getFilmOscarStatus(film, scoring);
   const biggestOpening = scoring._biggestOpeningFilm || "";
   const mostNumber1 = scoring._mostNumber1Film || "";
+  const filteredFilms = movies.filter(m => m.toLowerCase().includes(filmSearch.toLowerCase()));
 
   function withAuth(fn) { if (canEdit) fn(); else requireAuth(fn); }
   function set(field, val) { withAuth(() => updateScoring(film, field, val)); }
+  function selectFilm(m) { setFilm(m); setScoringFilm(m); setFilmSearch(m); setFilmSearchOpen(false); setRenaming(false); }
 
   const sel = { width: "100%", fontSize: 13, padding: "8px 10px", borderRadius: 7, border: `0.5px solid ${t.border}`, background: t.selectBg, color: t.text, cursor: canEdit ? "pointer" : "default" };
   const lbl = { fontSize: 11, fontWeight: 600, color: t.textMuted, letterSpacing: "0.08em", textTransform: "uppercase", display: "block", marginBottom: 6 };
@@ -27,9 +31,26 @@ export function Scoring({ scoring, movies, canEdit, isCommissioner, requireAuth,
         <div style={{ display: "flex", alignItems: "flex-start", gap: 12, marginBottom: renaming ? 10 : 0 }}>
           <Poster film={film} scoring={scoring} size="large" t={t} />
           <div style={{ flex: 1 }}>
-            <select value={film} onChange={e => { setFilm(e.target.value); setScoringFilm(e.target.value); setRenaming(false); }} style={{ ...sel, width: "100%", fontWeight: 600, fontSize: 14, cursor: "pointer", marginBottom: 8 }}>
-              {movies.map(m => <option key={m} value={m}>{m}</option>)}
-            </select>
+            <div style={{ position: "relative", marginBottom: 8 }}>
+              <input
+                value={filmSearch}
+                onChange={e => { setFilmSearch(e.target.value); setFilmSearchOpen(true); }}
+                onFocus={e => { setFilmSearchOpen(true); e.target.select(); }}
+                onBlur={() => setTimeout(() => setFilmSearchOpen(false), 150)}
+                placeholder="Search films…"
+                style={{ ...sel, width: "100%", fontWeight: 600, fontSize: 14 }}
+              />
+              {filmSearchOpen && (
+                <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: t.surface, border: `0.5px solid ${t.border}`, borderRadius: 6, marginTop: 2, zIndex: 20, maxHeight: 220, overflowY: "auto", boxShadow: "0 4px 12px rgba(0,0,0,0.15)" }}>
+                  {filteredFilms.length === 0 && <div style={{ padding: "8px 10px", fontSize: 12, color: t.textMuted }}>No matches</div>}
+                  {filteredFilms.map(m => (
+                    <div key={m} onMouseDown={() => selectFilm(m)} style={{ padding: "7px 10px", cursor: "pointer", fontSize: 13, color: t.text, borderBottom: `0.5px solid ${t.border}` }} onMouseEnter={e => e.currentTarget.style.background = t.surface2} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                      {m}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               {isFilmReleased(film, scoring) ? (
                 <span style={{ fontSize: 20, fontWeight: 700, fontFamily: "monospace", color: t.gold }}>{total} {total === 1 ? "Point" : "Points"}</span>
@@ -44,8 +65,8 @@ export function Scoring({ scoring, movies, canEdit, isCommissioner, requireAuth,
         </div>
         {renaming && (
           <div style={{ display: "flex", gap: 8 }}>
-            <input value={renameVal} onChange={e => setRenameVal(e.target.value)} onKeyDown={e => { if (e.key === "Enter") { updateMovieName(film, renameVal); setFilm(renameVal); setScoringFilm(renameVal); setRenaming(false); } if (e.key === "Escape") setRenaming(false); }} autoFocus style={{ flex: 1, fontSize: 13, padding: "6px 10px", borderRadius: 6, border: `0.5px solid ${t.borderStrong}`, background: t.surface2, color: t.text }} />
-            <button onClick={() => { updateMovieName(film, renameVal); setFilm(renameVal); setScoringFilm(renameVal); setRenaming(false); }} style={{ fontSize: 12, padding: "6px 14px", borderRadius: 6, border: "none", background: t.gold, color: "#fff", cursor: "pointer", fontWeight: 600 }}>Save</button>
+            <input value={renameVal} onChange={e => setRenameVal(e.target.value)} onKeyDown={e => { if (e.key === "Enter") { updateMovieName(film, renameVal); setFilm(renameVal); setScoringFilm(renameVal); setFilmSearch(renameVal); setRenaming(false); } if (e.key === "Escape") setRenaming(false); }} autoFocus style={{ flex: 1, fontSize: 13, padding: "6px 10px", borderRadius: 6, border: `0.5px solid ${t.borderStrong}`, background: t.surface2, color: t.text }} />
+            <button onClick={() => { updateMovieName(film, renameVal); setFilm(renameVal); setScoringFilm(renameVal); setFilmSearch(renameVal); setRenaming(false); }} style={{ fontSize: 12, padding: "6px 14px", borderRadius: 6, border: "none", background: t.gold, color: "#fff", cursor: "pointer", fontWeight: 600 }}>Save</button>
             <button onClick={() => setRenaming(false)} style={{ fontSize: 12, padding: "6px 10px", borderRadius: 6, border: `0.5px solid ${t.border}`, background: "transparent", color: t.textMuted, cursor: "pointer" }}>Cancel</button>
           </div>
         )}
@@ -78,6 +99,14 @@ export function Scoring({ scoring, movies, canEdit, isCommissioner, requireAuth,
           <p style={{ marginTop: 8, fontSize: 13, color: t.gold, fontFamily: "monospace", fontWeight: 600 }}>{getRTPoints(fs.criticsRT || "", fs.audienceRT || "")} pts</p>
         </Card>
       </div>
+
+      <Card t={t} style={{ marginBottom: 10 }}>
+        <span style={lbl}>Seen film · +1 pt</span>
+        <label style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 12px", background: fs.seenFilm ? t.goldBg : t.surface2, borderRadius: 8, border: fs.seenFilm ? `1px solid ${t.gold}` : `0.5px solid ${t.border}`, cursor: canEdit ? "pointer" : "default" }}>
+          <span style={{ fontSize: 13, color: fs.seenFilm ? t.gold : t.textSub, fontWeight: fs.seenFilm ? 600 : 400 }}>{fs.seenFilm ? "+1 pt awarded" : "Mark as seen"}</span>
+          <input type="checkbox" disabled={!canEdit} checked={!!fs.seenFilm} onChange={e => set("seenFilm", e.target.checked)} />
+        </label>
+      </Card>
 
       <Card t={t} style={{ marginBottom: 10 }}>
         <span style={lbl}>Season bonuses · +1 pt each · one film only</span>

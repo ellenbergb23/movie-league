@@ -455,7 +455,7 @@ export default function App() {
           <span style={{ fontSize: 15, fontWeight: 600, color: t.gold }}>🎬</span>
           <span style={{ fontSize: 14, fontWeight: 600, color: t.text }}>Fantasy Film League</span>
           <span style={{ fontSize: 12, color: t.textMuted, borderLeft: `0.5px solid ${t.border}`, paddingLeft: 10 }}>{leagueName}</span>
-          {marxistMode && <span style={{ fontSize: 11, color: t.red, border: `0.5px solid ${t.red}`, padding: "2px 7px", borderRadius: 4, fontWeight: 600 }}>☭ Marxist Mode</span>}
+          {marxistMode && isCommissioner && <span style={{ fontSize: 11, color: t.red, border: `0.5px solid ${t.red}`, padding: "2px 7px", borderRadius: 4, fontWeight: 600 }}>☭ Marxist Mode</span>}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {authUser ? (

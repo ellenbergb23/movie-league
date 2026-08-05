@@ -6,6 +6,7 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const LEAGUE_ID = "demo2026";
 const COMMISSIONER_EMAIL = "ellenbergb23@gmail.com";
+const TMDB_API_KEY = import.meta.env.VITE_TMDB_API_KEY || "";
 
 const DEFAULT_PLAYERS = ["Ryan Williams","Illike","Walker","Nook","Ben Hillman","Chrinny","Ben E","IRobis"];
 const ROUNDS = ["1","2","3","4","5","6","7","S1","S2"];
@@ -132,6 +133,43 @@ function getPlayerOscarTotals(player, draft, scoring) {
     noms += s.totalNoms; wins += s.totalWins;
   });
   return { noms, wins };
+}
+
+function isFilmReleased(film, scoring) {
+  const fs = scoring?.[film];
+  if (!fs) return false;
+  // Dynamic: released if ANY scoring field currently has a value. Clearing all fields reverts to "Unreleased".
+  if (fs.bo) return true;
+  if (fs.criticsRT) return true;
+  if (fs.audienceRT) return true;
+  if ((fs.oscarNoms || []).some(arr => (arr || []).length > 0)) return true;
+  if ((fs.oscarWinner || []).some(w => w)) return true;
+  return false;
+}
+
+// ── TMDB helpers ──────────────────────────────────────────────────────────
+async function searchTMDB(query) {
+  if (!TMDB_API_KEY) return [];
+  try {
+    // Search across all years to find posters, then filter for recent films
+    const res = await fetch(`https://api.themoviedb.org/3/search/movie?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}&sort_by=popularity.desc`);
+    const data = await res.json();
+    const ALLOWED_YEARS = ["2025", "2026", "2027"];
+    return (data.results || [])
+      .filter(r => r.poster_path) // Only include movies WITH posters
+      .filter(r => r.release_date && ALLOWED_YEARS.includes(r.release_date.slice(0, 4))) // Only 2025/2026/2027 releases
+      .slice(0, 5)
+      .map(r => ({
+        title: r.title,
+        poster_path: r.poster_path,
+        poster: `https://image.tmdb.org/t/p/w200${r.poster_path}`,
+        release_date: r.release_date || "",
+        tmdbId: r.id,
+      }));
+  } catch (e) {
+    console.error("TMDB search failed:", e);
+    return [];
+  }
 }
 
 // ── Supabase helpers ──────────────────────────────────────────────────────────
@@ -402,10 +440,17 @@ export default function App() {
     setDraft(prev => ({ ...prev, [player]: prev[player].map((v, i) => i === roundIdx ? film : v) }));
     await dbSetDraftPick(player, roundIdx, film);
   }
-  async function addMovie(title) {
+  async function addMovie(title, poster_path) {
     if (!title.trim() || movies.includes(title.trim())) return;
-    setMovies(prev => [...prev, title.trim()]);
-    await dbAddMovie(title.trim());
+    const trimmedTitle = title.trim();
+    setMovies(prev => [...prev, trimmedTitle]);
+    await dbAddMovie(trimmedTitle);
+    // Merge poster data with any existing scoring (never overwrite existing scores)
+    if (poster_path) {
+      const mergedData = { ...(scoring[trimmedTitle] || {}), poster_path };
+      setScoring(prev => ({ ...prev, [trimmedTitle]: mergedData }));
+      await dbSetScore(trimmedTitle, mergedData);
+    }
     showToast("Film added");
   }
   async function updateMovieName(oldName, newName) {
@@ -418,14 +463,36 @@ export default function App() {
     showToast("Film renamed");
   }
 
+  async function backfillPosters(onProgress, force = false) {
+    let updated = 0, skipped = 0;
+    const notFound = [];
+    for (let i = 0; i < movies.length; i++) {
+      const film = movies[i];
+      if (onProgress) onProgress(i + 1, movies.length, film);
+      if (!force && scoring[film]?.poster_path) { skipped++; continue; }
+      const results = await searchTMDB(film);
+      // Only accept EXACT title matches (case-insensitive) — never guess with a similar/popular title
+      const exactMatches = results.filter(r => r.title.trim().toLowerCase() === film.trim().toLowerCase());
+      // Among exact matches, prefer a 2025/2026 release if there's more than one (e.g. remakes, old miniseries with the same name)
+      const best = exactMatches.find(r => ["2025", "2026", "2027"].includes(r.release_date?.slice(0, 4))) || exactMatches[0];
+      if (best) {
+        const updatedData = { ...(scoring[film] || {}), poster_path: best.poster_path };
+        setScoring(prev => ({ ...prev, [film]: updatedData }));
+        await dbSetScore(film, updatedData);
+        updated++;
+      } else {
+        notFound.push(film);
+      }
+      await new Promise(r => setTimeout(r, 300)); // avoid hammering TMDB
+    }
+    showToast(`Posters: ${updated} added · ${skipped} already had one · ${notFound.length} not found`);
+    return { updated, skipped, notFound };
+  }
+
   const scoringWithMeta = { ...scoring, ...(scoring["_meta"] || {}) };
 
   function getPlayerTotal(player) {
     return (draft[player] || []).reduce((sum, film) => sum + (film ? calcFilmScore(film, scoringWithMeta) : 0), 0);
-  }
-  function getAllTimeTotal(player) {
-    const hist = Object.values(HISTORICAL[player] || {}).reduce((s, v) => s + (Number(v) || 0), 0);
-    return hist + getPlayerTotal(player);
   }
 
   function goToPlayerDraft(player) { setDraftFocusPlayer(player); setTab("draft board"); }
@@ -440,7 +507,7 @@ export default function App() {
   // Only show waiting page if logged in but not yet assigned (and not commissioner)
   if (authUser && !isCommissioner && !isAssigned) return <WaitingPage t={t} user={authUser} onSignOut={signOut} />;
 
-  const tabs = ["leaderboard","draft board","scoring","all time","settings"];
+  const tabs = ["leaderboard","draft board","scoring","settings"];
   if (isCommissioner) tabs.push("commissioner");
 
   return (
@@ -479,11 +546,10 @@ export default function App() {
 
       <main style={{ maxWidth: 880, margin: "0 auto", padding: "1.5rem" }}>
         {tab === "leaderboard"  && <Leaderboard rankedPlayers={rankedPlayers} getPlayerTotal={getPlayerTotal} draft={draft} scoring={scoringWithMeta} t={t} goToPlayerDraft={goToPlayerDraft} />}
-        {tab === "draft board"  && <DraftBoard draft={draft} players={players} movies={movies} canEdit={canEdit} isCommissioner={isCommissioner} updateDraftPick={updateDraftPick} requireAuth={requireAuth} scoring={scoringWithMeta} goToFilmScoring={goToFilmScoring} t={t} focusPlayer={draftFocusPlayer} />}
+        {tab === "draft board"  && <DraftBoard draft={draft} players={players} movies={movies} canEdit={canEdit} isCommissioner={isCommissioner} marxistMode={marxistMode} updateDraftPick={updateDraftPick} requireAuth={requireAuth} scoring={scoringWithMeta} goToFilmScoring={goToFilmScoring} t={t} focusPlayer={draftFocusPlayer} addMovie={addMovie} />}
         {tab === "scoring"      && <Scoring scoring={scoringWithMeta} movies={movies} canEdit={canEdit} isCommissioner={isCommissioner} requireAuth={requireAuth} updateScoring={updateScoring} updateScoringRoot={updateScoringRoot} updateOscarField={updateOscarField} updateMovieName={updateMovieName} scoringFilm={scoringFilm} setScoringFilm={setScoringFilm} showToast={showToast} t={t} />}
-        {tab === "all time"     && <AllTime players={players} getPlayerTotal={getPlayerTotal} getAllTimeTotal={getAllTimeTotal} t={t} />}
-        {tab === "settings"     && <Settings movies={movies} players={players} canEdit={canEdit} myPlayerName={myPlayerName} marxistMode={marxistMode} updateMovieName={updateMovieName} addMovie={addMovie} renamePlayer={renamePlayer} t={t} showToast={showToast} requireAuth={requireAuth} isCommissioner={isCommissioner} />}
-        {tab === "commissioner" && isCommissioner && <CommissionerSettings leagueName={leagueName} updateLeagueName={updateLeagueName} marxistMode={marxistMode} toggleMarxistMode={toggleMarxistMode} leagueUsers={leagueUsers} players={players} assignPlayer={assignPlayer} t={t} showToast={showToast} />}
+        {tab === "settings"     && <Settings movies={movies} players={players} canEdit={canEdit} myPlayerName={myPlayerName} marxistMode={marxistMode} updateMovieName={updateMovieName} addMovie={addMovie} renamePlayer={renamePlayer} t={t} showToast={showToast} requireAuth={requireAuth} isCommissioner={isCommissioner} searchTMDB={searchTMDB} scoring={scoringWithMeta} />}
+        {tab === "commissioner" && isCommissioner && <CommissionerSettings leagueName={leagueName} updateLeagueName={updateLeagueName} marxistMode={marxistMode} toggleMarxistMode={toggleMarxistMode} leagueUsers={leagueUsers} players={players} assignPlayer={assignPlayer} t={t} showToast={showToast} movies={movies} backfillPosters={backfillPosters} />}
       </main>
     </div>
   );
@@ -498,6 +564,20 @@ function Card({ children, t, style = {} }) {
 function OscarBadge({ noms, wins, t }) {
   if (!noms && !wins) return null;
   return <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: t.goldBg, border: `0.5px solid ${t.gold}`, borderRadius: 4, padding: "2px 8px", fontSize: 11, color: t.gold, fontWeight: 600 }}>✦ {noms} nom{noms !== 1 ? "s" : ""}{wins > 0 ? ` · ${wins} win${wins !== 1 ? "s" : ""}` : ""}</span>;
+}
+
+function Poster({ film, scoring, size = "small", t }) {
+  const fs = scoring?.[film];
+  const poster_path = fs?.poster_path;
+  const poster_url = poster_path ? `https://image.tmdb.org/t/p/w200${poster_path}` : null;
+  
+  const sizes = { mini: { width: 26, height: 39 }, small: { width: 60, height: 90 }, large: { width: 100, height: 150 } };
+  const dimensions = sizes[size] || sizes.small;
+  
+  if (poster_url) {
+    return <img src={poster_url} alt={film} style={{ ...dimensions, borderRadius: 4, objectFit: "cover", flexShrink: 0 }} />;
+  }
+  return <div style={{ ...dimensions, background: "#000", borderRadius: 4, flexShrink: 0 }} />;
 }
 
 function Leaderboard({ rankedPlayers, getPlayerTotal, draft, scoring, t, goToPlayerDraft }) {
@@ -537,8 +617,29 @@ function Leaderboard({ rankedPlayers, getPlayerTotal, draft, scoring, t, goToPla
   );
 }
 
-function DraftBoard({ draft, players, movies, canEdit, isCommissioner, updateDraftPick, requireAuth, scoring, goToFilmScoring, t, focusPlayer }) {
-  const sel = { width: "100%", fontSize: 12, padding: "5px 7px", borderRadius: 6, border: `0.5px solid ${t.border}`, background: t.selectBg, color: t.text, cursor: "pointer" };
+function DraftBoard({ draft, players, movies, canEdit, isCommissioner, marxistMode, updateDraftPick, requireAuth, scoring, goToFilmScoring, t, focusPlayer, addMovie }) {
+  const sel = { width: "100%", fontSize: 11, padding: "4px 6px", borderRadius: 6, border: `0.5px solid ${t.border}`, background: t.selectBg, color: t.text, cursor: "pointer" };
+  const [editingSlot, setEditingSlot] = useState(null); // `${player}-${roundIndex}` or null
+  const [swapQuery, setSwapQuery] = useState("");
+  const [tmdbSwapResults, setTmdbSwapResults] = useState([]);
+  const [tmdbSwapLoading, setTmdbSwapLoading] = useState(false);
+
+  async function handleSwapQueryChange(value) {
+    setSwapQuery(value);
+    if (!value.trim()) { setTmdbSwapResults([]); return; }
+    setTmdbSwapLoading(true);
+    const results = await searchTMDB(value);
+    setTmdbSwapResults(results);
+    setTmdbSwapLoading(false);
+  }
+
+  function selectNewFilm(title, poster_path, player, ri) {
+    addMovie(title, poster_path); // safe no-op if it already exists
+    updateDraftPick(player, ri, title);
+    setEditingSlot(null);
+    setSwapQuery("");
+    setTmdbSwapResults([]);
+  }
   useEffect(() => {
     if (focusPlayer) {
       const el = document.getElementById(`player-${focusPlayer.replace(/\s/g, "-")}`);
@@ -559,30 +660,89 @@ function DraftBoard({ draft, players, movies, canEdit, isCommissioner, updateDra
               <span style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{player}</span>
               <span style={{ fontSize: 13, fontFamily: "monospace", color: t.gold, fontWeight: 600 }}>{total} pts</span>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(175px, 1fr))", gap: 8 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(100px, 1fr))", gap: 8 }}>
               {picks.map((film, ri) => {
                 const round = ["1","2","3","4","5","6","7","S1","S2"][ri];
                 const score = film ? calcFilmScore(film, scoring) : null;
                 const status = film ? getFilmOscarStatus(film, scoring) : {};
                 const { nominated, winner } = status;
+                const slotKey = `${player}-${ri}`;
+                const isEditing = editingSlot === slotKey;
                 return (
-                  <div key={ri} style={{ position: "relative", background: winner ? t.goldBg : t.surface2, border: winner ? `2px solid ${t.gold}` : nominated ? `1.5px solid ${t.gold}` : `0.5px solid ${t.border}`, borderRadius: 8, padding: "8px 10px" }}>
-                    {winner && <span style={{ position: "absolute", top: -1, right: 6, fontSize: 9, background: t.gold, color: "#fff", padding: "1px 5px", borderRadius: "0 0 4px 4px", fontWeight: 700 }}>BEST PIC ✦</span>}
-                    {nominated && !winner && <span style={{ position: "absolute", top: -1, right: 6, fontSize: 9, background: t.goldBg, color: t.gold, padding: "1px 5px", borderRadius: "0 0 4px 4px", border: `0.5px solid ${t.gold}`, fontWeight: 600 }}>BP NOM</span>}
-                    <div style={{ fontSize: 10, color: t.textMuted, marginBottom: 5, fontWeight: 600, letterSpacing: "0.06em" }}>RD {round}</div>
-                    {canEdit && isCommissioner ? (
-                      <select value={film} onChange={e => updateDraftPick(player, ri, e.target.value)} style={sel}>
-                        <option value="">— select —</option>
-                        {movies.map(m => <option key={m} value={m}>{m}</option>)}
-                      </select>
-                    ) : (
-                      <div style={{ fontSize: 12, color: film ? t.text : t.textMuted, minHeight: 22 }}>{film || "TBD"}</div>
-                    )}
-                    {film && score !== null && (
-                      <div style={{ marginTop: 6, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                        <span style={{ fontSize: 11, fontFamily: "monospace", color: t.textSub }}>{score} pts</span>
-                        <button onClick={() => goToFilmScoring(film)} style={{ fontSize: 11, color: t.gold, background: "none", border: "none", cursor: "pointer", padding: 0, fontWeight: 600 }}>scoring →</button>
+                  <div key={ri} style={{ position: "relative", display: "flex", flexDirection: "column", gap: 4 }}>
+                    <div style={{ position: "relative", background: winner ? t.goldBg : t.surface2, border: winner ? `2px solid ${t.gold}` : nominated ? `1.5px solid ${t.gold}` : `0.5px solid ${t.border}`, borderRadius: 8, padding: "8px", minHeight: 145 }}>
+                      {winner && <span style={{ position: "absolute", top: -1, right: 3, fontSize: 8, background: t.gold, color: "#fff", padding: "1px 4px", borderRadius: "0 0 3px 3px", fontWeight: 700 }}>BP ✦</span>}
+                      {nominated && !winner && <span style={{ position: "absolute", top: -1, right: 3, fontSize: 8, background: t.goldBg, color: t.gold, padding: "1px 4px", borderRadius: "0 0 3px 3px", border: `0.5px solid ${t.gold}`, fontWeight: 600 }}>NOM</span>}
+                      <div style={{ fontSize: 9, color: t.textMuted, marginBottom: 4, fontWeight: 600, letterSpacing: "0.06em" }}>RD {round}</div>
+                      <div style={{ fontSize: 10, color: t.text, fontWeight: 600, marginBottom: 4, textAlign: "center", lineHeight: 1.2, height: 36, display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                        {film || <span style={{ color: t.textMuted, fontWeight: 400 }}>TBD</span>}
                       </div>
+                      {film ? (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "center" }}>
+                          <Poster film={film} scoring={scoring} size="small" t={t} />
+                          {score !== null && (
+                            <div style={{ width: "100%", textAlign: "center" }}>
+                              {isFilmReleased(film, scoring) ? (
+                                <span style={{ fontSize: 10, fontFamily: "monospace", color: t.textSub, fontWeight: 600 }}>{score} {score === 1 ? "Point" : "Points"}</span>
+                              ) : (
+                                <span style={{ fontSize: 10, color: t.textMuted, fontStyle: "italic" }}>Unreleased</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div style={{ width: 60, height: 90, margin: "0 auto", background: t.surface, border: `1px dashed ${t.border}`, borderRadius: 4 }} />
+                      )}
+                    </div>
+                    {canEdit && (isCommissioner || marxistMode) && (
+                      isEditing ? (
+                        <div style={{ position: "relative" }}>
+                          <input
+                            autoFocus
+                            value={swapQuery}
+                            onChange={e => handleSwapQueryChange(e.target.value)}
+                            onBlur={() => setTimeout(() => { setEditingSlot(null); setSwapQuery(""); setTmdbSwapResults([]); }, 150)}
+                            onKeyDown={e => { if (e.key === "Escape") { setEditingSlot(null); setSwapQuery(""); setTmdbSwapResults([]); } }}
+                            placeholder="Search films…"
+                            style={sel}
+                          />
+                          <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: t.surface, border: `0.5px solid ${t.border}`, borderRadius: 6, marginTop: 2, zIndex: 20, maxHeight: 260, overflowY: "auto", boxShadow: "0 4px 12px rgba(0,0,0,0.15)" }}>
+                            {movies.filter(m => m.toLowerCase().includes(swapQuery.toLowerCase())).length > 0 && (
+                              <div style={{ fontSize: 9, color: t.textMuted, fontWeight: 700, letterSpacing: "0.06em", padding: "5px 7px 2px", textTransform: "uppercase" }}>In your league</div>
+                            )}
+                            {movies.filter(m => m.toLowerCase().includes(swapQuery.toLowerCase())).slice(0, 5).map(m => (
+                              <div key={m} onMouseDown={() => { updateDraftPick(player, ri, m); setEditingSlot(null); setSwapQuery(""); setTmdbSwapResults([]); }} style={{ display: "flex", gap: 6, alignItems: "center", padding: "5px 7px", cursor: "pointer", fontSize: 10, color: t.text, borderBottom: `0.5px solid ${t.border}` }} onMouseEnter={e => e.currentTarget.style.background = t.surface2} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                                <Poster film={m} scoring={scoring} size="mini" t={t} />
+                                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{m}</span>
+                              </div>
+                            ))}
+                            {swapQuery.trim() && (
+                              <div style={{ fontSize: 9, color: t.textMuted, fontWeight: 700, letterSpacing: "0.06em", padding: "6px 7px 2px", textTransform: "uppercase", borderTop: `0.5px solid ${t.border}` }}>Search TMDB (add new film)</div>
+                            )}
+                            {tmdbSwapLoading && <div style={{ padding: "6px 7px", fontSize: 10, color: t.textMuted }}>Searching…</div>}
+                            {!tmdbSwapLoading && swapQuery.trim() && tmdbSwapResults.map(r => {
+                              const year = r.release_date ? r.release_date.slice(0, 4) : null;
+                              return (
+                                <div key={r.tmdbId} onMouseDown={() => selectNewFilm(r.title, r.poster_path, player, ri)} style={{ display: "flex", gap: 6, alignItems: "center", padding: "5px 7px", cursor: "pointer", fontSize: 10, color: t.text, borderBottom: `0.5px solid ${t.border}` }} onMouseEnter={e => e.currentTarget.style.background = t.surface2} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                                  <img src={r.poster} alt="" style={{ width: 26, height: 39, borderRadius: 4, objectFit: "cover", flexShrink: 0 }} />
+                                  <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.title}</span>
+                                  {year && <span style={{ fontSize: 9, color: t.textMuted, fontFamily: "monospace" }}>{year}</span>}
+                                </div>
+                              );
+                            })}
+                            {film && (
+                              <div onMouseDown={() => { updateDraftPick(player, ri, ""); setEditingSlot(null); setSwapQuery(""); setTmdbSwapResults([]); }} style={{ padding: "6px 7px", cursor: "pointer", fontSize: 10, color: t.textMuted, fontStyle: "italic" }}>— clear pick —</div>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <button onClick={() => { setEditingSlot(slotKey); setSwapQuery(""); }} style={{ fontSize: 9, color: t.textMuted, background: "none", border: `0.5px solid ${t.border}`, borderRadius: 4, cursor: "pointer", padding: "2px 6px", fontWeight: 600 }}>
+                          {film ? "swap" : "set film"}
+                        </button>
+                      )
+                    )}
+                    {film && (
+                      <button onClick={() => goToFilmScoring(film)} style={{ fontSize: 9, color: t.gold, background: "none", border: "none", cursor: "pointer", padding: 0, fontWeight: 600 }}>scoring →</button>
                     )}
                   </div>
                 );
@@ -616,14 +776,23 @@ function Scoring({ scoring, movies, canEdit, isCommissioner, requireAuth, update
   return (
     <div>
       <div style={{ background: status.winner ? t.goldBg : t.surface, border: status.winner ? `2px solid ${t.gold}` : status.nominated ? `1.5px solid ${t.gold}` : `0.5px solid ${t.border}`, borderRadius: 10, padding: "14px 16px", marginBottom: 14 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: renaming ? 10 : 0 }}>
-          <select value={film} onChange={e => { setFilm(e.target.value); setScoringFilm(e.target.value); setRenaming(false); }} style={{ ...sel, flex: 1, maxWidth: 340, fontWeight: 600, fontSize: 14, cursor: "pointer" }}>
-            {movies.map(m => <option key={m} value={m}>{m}</option>)}
-          </select>
-          <span style={{ fontSize: 20, fontWeight: 700, fontFamily: "monospace", color: t.gold }}>{total}</span>
-          {status.winner && <span style={{ fontSize: 11, background: t.gold, color: "#fff", padding: "3px 9px", borderRadius: 5, fontWeight: 700 }}>BEST PICTURE ✦</span>}
-          {status.nominated && !status.winner && <span style={{ fontSize: 11, background: t.goldBg, color: t.gold, padding: "3px 9px", borderRadius: 5, border: `0.5px solid ${t.gold}`, fontWeight: 600 }}>BP NOM</span>}
-          {(canEdit || isCommissioner) && !renaming && <button onClick={() => withAuth(() => { setRenaming(true); setRenameVal(film); })} style={{ fontSize: 11, color: t.textMuted, background: "none", border: `0.5px solid ${t.border}`, borderRadius: 5, cursor: "pointer", padding: "3px 8px" }}>rename</button>}
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 12, marginBottom: renaming ? 10 : 0 }}>
+          <Poster film={film} scoring={scoring} size="large" t={t} />
+          <div style={{ flex: 1 }}>
+            <select value={film} onChange={e => { setFilm(e.target.value); setScoringFilm(e.target.value); setRenaming(false); }} style={{ ...sel, width: "100%", fontWeight: 600, fontSize: 14, cursor: "pointer", marginBottom: 8 }}>
+              {movies.map(m => <option key={m} value={m}>{m}</option>)}
+            </select>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              {isFilmReleased(film, scoring) ? (
+                <span style={{ fontSize: 20, fontWeight: 700, fontFamily: "monospace", color: t.gold }}>{total} {total === 1 ? "Point" : "Points"}</span>
+              ) : (
+                <span style={{ fontSize: 16, fontWeight: 600, color: t.textMuted, fontStyle: "italic" }}>Unreleased</span>
+              )}
+              {status.winner && <span style={{ fontSize: 11, background: t.gold, color: "#fff", padding: "3px 9px", borderRadius: 5, fontWeight: 700 }}>BEST PICTURE ✦</span>}
+              {status.nominated && !status.winner && <span style={{ fontSize: 11, background: t.goldBg, color: t.gold, padding: "3px 9px", borderRadius: 5, border: `0.5px solid ${t.gold}`, fontWeight: 600 }}>BP NOM</span>}
+              {(canEdit || isCommissioner) && !renaming && <button onClick={() => withAuth(() => { setRenaming(true); setRenameVal(film); })} style={{ fontSize: 11, color: t.textMuted, background: "none", border: `0.5px solid ${t.border}`, borderRadius: 5, cursor: "pointer", padding: "3px 8px" }}>rename</button>}
+            </div>
+          </div>
         </div>
         {renaming && (
           <div style={{ display: "flex", gap: 8 }}>
@@ -714,62 +883,41 @@ function Scoring({ scoring, movies, canEdit, isCommissioner, requireAuth, update
   );
 }
 
-function AllTime({ players, getPlayerTotal, getAllTimeTotal, t }) {
-  const sorted = [...players].sort((a, b) => getAllTimeTotal(b) - getAllTimeTotal(a));
-  const medals = ["🥇","🥈","🥉"];
-  const th = { padding: "10px 16px", textAlign: "center", color: t.textMuted, fontWeight: 400, fontSize: 13, borderBottom: `0.5px solid ${t.border}` };
-  return (
-    <div>
-      <SL t={t}>all-time standings</SL>
-      <div style={{ background: t.surface, border: `0.5px solid ${t.border}`, borderRadius: 10, overflow: "hidden" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-          <thead>
-            <tr style={{ background: t.surface2 }}>
-              <th style={{ ...th, textAlign: "left", width: 40 }}></th>
-              <th style={{ ...th, textAlign: "left" }}>Player</th>
-              {YEARS.map(y => <th key={y} style={th}>{y}</th>)}
-              <th style={{ ...th, color: t.gold, fontWeight: 600 }}>Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sorted.map((player, i) => {
-              const color = PLAYER_COLORS[DEFAULT_PLAYERS.indexOf(player) % PLAYER_COLORS.length];
-              return (
-                <tr key={player} style={{ borderBottom: `0.5px solid ${t.border}`, background: i % 2 === 0 ? t.surface : t.rowAlt }}>
-                  <td style={{ padding: "11px 16px", fontSize: 16 }}>{medals[i] || `#${i+1}`}</td>
-                  <td style={{ padding: "11px 16px", fontWeight: 600, color: t.text }}>
-                    <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <span style={{ width: 9, height: 9, borderRadius: "50%", background: color, display: "inline-block", flexShrink: 0 }} />
-                      {player}
-                    </span>
-                  </td>
-                  {YEARS.map(y => {
-                    const pts = y === "2026" ? getPlayerTotal(player) : (HISTORICAL[player]?.[y] || 0);
-                    return <td key={y} style={{ padding: "11px 16px", textAlign: "center", fontFamily: "monospace", color: pts > 0 ? t.text : t.textMuted }}>{pts > 0 ? pts : "—"}</td>;
-                  })}
-                  <td style={{ padding: "11px 16px", textAlign: "center", fontFamily: "monospace", fontWeight: 700, color: t.gold }}>{getAllTimeTotal(player)}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-function Settings({ movies, players, canEdit, myPlayerName, marxistMode, updateMovieName, addMovie, renamePlayer, t, showToast, requireAuth, isCommissioner }) {
+function Settings({ movies, players, canEdit, myPlayerName, marxistMode, updateMovieName, addMovie, renamePlayer, t, showToast, requireAuth, isCommissioner, searchTMDB, scoring }) {
   const [editingPlayer, setEditingPlayer] = useState(null);
   const [playerVal, setPlayerVal] = useState("");
   const [editingFilm, setEditingFilm] = useState(null);
   const [filmVal, setFilmVal] = useState("");
   const [newFilm, setNewFilm] = useState("");
   const [search, setSearch] = useState("");
+  const [tmdbSearchResults, setTmdbSearchResults] = useState([]);
+  const [tmdbSearchQuery, setTmdbSearchQuery] = useState("");
+  const [showTmdbResults, setShowTmdbResults] = useState(false);
+  const [tmdbLoading, setTmdbLoading] = useState(false);
 
   const filtered = movies.filter(m => m.toLowerCase().includes(search.toLowerCase()));
   const inp = { fontSize: 13, padding: "7px 10px", borderRadius: 7, border: `0.5px solid ${t.borderStrong}`, background: t.surface2, color: t.text };
 
   function withAuth(fn) { if (canEdit) fn(); else requireAuth(fn); }
+
+  async function handleTmdbSearch(query) {
+    if (!query.trim()) { setTmdbSearchResults([]); setShowTmdbResults(false); return; }
+    setTmdbLoading(true);
+    const results = await searchTMDB(query);
+    setTmdbSearchResults(results);
+    setShowTmdbResults(true);
+    setTmdbLoading(false);
+  }
+
+  function selectTmdbFilm(title, poster_path) {
+    setNewFilm(title);
+    setShowTmdbResults(false);
+    setTmdbSearchQuery("");
+    // Store poster data for this film
+    if (poster_path) {
+      sessionStorage.setItem(`poster_${title}`, poster_path);
+    }
+  }
 
   return (
     <div>
@@ -800,9 +948,37 @@ function Settings({ movies, players, canEdit, myPlayerName, marxistMode, updateM
 
       <SL t={t}>film management</SL>
       <Card t={t} style={{ marginBottom: 12 }}>
-        <div style={{ display: "flex", gap: 8 }}>
-          <input value={newFilm} onChange={e => setNewFilm(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && newFilm.trim()) { withAuth(() => { addMovie(newFilm); setNewFilm(""); }); } }} placeholder="Add a new film..." style={{ ...inp, flex: 1 }} />
-          <button onClick={() => { if (newFilm.trim()) withAuth(() => { addMovie(newFilm); setNewFilm(""); }); }} style={{ fontSize: 13, padding: "7px 16px", borderRadius: 7, border: "none", background: t.gold, color: "#fff", cursor: "pointer", fontWeight: 600 }}>Add</button>
+        <div style={{ display: "flex", gap: 8, position: "relative" }}>
+          <input 
+            value={newFilm} 
+            onChange={e => { 
+              setNewFilm(e.target.value); 
+              if (e.target.value.trim()) {
+                setTmdbSearchQuery(e.target.value);
+                handleTmdbSearch(e.target.value);
+              }
+            }} 
+            onKeyDown={e => { if (e.key === "Enter" && newFilm.trim()) { withAuth(() => { addMovie(newFilm); setNewFilm(""); setShowTmdbResults(false); }); } }} 
+            placeholder="Search films or add manually..." 
+            style={{ ...inp, flex: 1 }} 
+          />
+          <button onClick={() => { if (newFilm.trim()) withAuth(() => { const poster_path = sessionStorage.getItem(`poster_${newFilm}`); addMovie(newFilm, poster_path); setNewFilm(""); setShowTmdbResults(false); sessionStorage.removeItem(`poster_${newFilm}`); }); }} style={{ fontSize: 13, padding: "7px 16px", borderRadius: 7, border: "none", background: t.gold, color: "#fff", cursor: "pointer", fontWeight: 600 }}>Add</button>
+          {showTmdbResults && (
+            <div style={{ position: "absolute", top: "100%", left: 0, right: 60, background: t.surface, border: `0.5px solid ${t.border}`, borderRadius: 8, marginTop: 4, zIndex: 10, maxHeight: 200, overflowY: "auto" }}>
+              {tmdbLoading && <div style={{ padding: "12px 14px", fontSize: 12, color: t.textMuted }}>Searching…</div>}
+              {!tmdbLoading && tmdbSearchResults.length > 0 && tmdbSearchResults.map(r => {
+                const year = r.release_date ? r.release_date.slice(0, 4) : null;
+                return (
+                  <div key={r.tmdbId} onClick={() => selectTmdbFilm(r.title, r.poster_path)} style={{ padding: "10px 14px", borderBottom: `0.5px solid ${t.border}`, cursor: "pointer", display: "flex", gap: 10, alignItems: "center", fontSize: 13, color: t.text }} onMouseEnter={e => e.currentTarget.style.background = t.surface2} onMouseLeave={e => e.currentTarget.style.background = t.surface}>
+                    {r.poster && <img src={r.poster} alt="" style={{ width: 30, height: 45, borderRadius: 4, objectFit: "cover" }} />}
+                    <span style={{ flex: 1 }}>{r.title}</span>
+                    {year && <span style={{ fontSize: 12, color: t.textMuted, fontFamily: "monospace" }}>{year}</span>}
+                  </div>
+                );
+              })}
+              {!tmdbLoading && tmdbSearchResults.length === 0 && <div style={{ padding: "12px 14px", fontSize: 12, color: t.textMuted }}>No results found</div>}
+            </div>
+          )}
         </div>
       </Card>
       <Card t={t} style={{ marginBottom: 10 }}>
@@ -813,6 +989,7 @@ function Settings({ movies, players, canEdit, myPlayerName, marxistMode, updateM
         <div style={{ background: t.surface, border: `0.5px solid ${t.border}`, borderRadius: 10, overflow: "hidden" }}>
           {filtered.map((film, i) => (
             <div key={film} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 16px", borderBottom: i < filtered.length - 1 ? `0.5px solid ${t.border}` : "none", background: i % 2 === 0 ? t.surface : t.rowAlt }}>
+              <Poster film={film} scoring={scoring} size="small" t={t} />
               {editingFilm === film ? (
                 <>
                   <input value={filmVal} onChange={e => setFilmVal(e.target.value)} onKeyDown={e => { if (e.key === "Enter") { updateMovieName(film, filmVal); setEditingFilm(null); setSearch(""); } if (e.key === "Escape") setEditingFilm(null); }} autoFocus style={{ flex: 1, fontSize: 13, padding: "5px 9px", borderRadius: 6, border: `0.5px solid ${t.borderStrong}`, background: t.surface2, color: t.text }} />
@@ -834,10 +1011,23 @@ function Settings({ movies, players, canEdit, myPlayerName, marxistMode, updateM
   );
 }
 
-function CommissionerSettings({ leagueName, updateLeagueName, marxistMode, toggleMarxistMode, leagueUsers, players, assignPlayer, t, showToast }) {
+function CommissionerSettings({ leagueName, updateLeagueName, marxistMode, toggleMarxistMode, leagueUsers, players, assignPlayer, t, showToast, movies, backfillPosters }) {
   const [editingLeague, setEditingLeague] = useState(false);
   const [leagueVal, setLeagueVal] = useState(leagueName);
   const [copied, setCopied] = useState(false);
+  const [posterProgress, setPosterProgress] = useState(null); // { current, total, film } or null
+  const [posterRunning, setPosterRunning] = useState(false);
+  const [posterResults, setPosterResults] = useState(null); // { updated, skipped, notFound: [] } or null
+  const [forceRecheck, setForceRecheck] = useState(false);
+
+  async function runBackfill() {
+    setPosterRunning(true);
+    setPosterResults(null);
+    const results = await backfillPosters((current, total, film) => setPosterProgress({ current, total, film }), forceRecheck);
+    setPosterRunning(false);
+    setPosterProgress(null);
+    setPosterResults(results);
+  }
 
   useEffect(() => { setLeagueVal(leagueName); }, [leagueName]);
 
@@ -850,6 +1040,39 @@ function CommissionerSettings({ leagueName, updateLeagueName, marxistMode, toggl
 
   return (
     <div>
+      <SL t={t}>film posters</SL>
+      <Card t={t} style={{ marginBottom: 24 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <p style={{ fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 4 }}>Fetch missing posters</p>
+            <p style={{ fontSize: 12, color: t.textMuted, lineHeight: 1.5 }}>
+              {posterRunning && posterProgress
+                ? `Checking ${posterProgress.current}/${posterProgress.total}: ${posterProgress.film}…`
+                : `Looks up posters for all ${movies.length} films already in your league — skips any that already have one.`}
+            </p>
+          </div>
+          <button onClick={runBackfill} disabled={posterRunning} style={{ fontSize: 13, padding: "8px 16px", borderRadius: 8, border: `1.5px solid ${t.gold}`, background: posterRunning ? "transparent" : t.gold, color: posterRunning ? t.gold : "#fff", cursor: posterRunning ? "default" : "pointer", fontWeight: 600, whiteSpace: "nowrap", marginLeft: 16, opacity: posterRunning ? 0.7 : 1 }}>
+            {posterRunning ? "Running…" : "Fetch posters"}
+          </button>
+        </div>
+        <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 10, fontSize: 12, color: t.textSub, cursor: "pointer" }}>
+          <input type="checkbox" checked={forceRecheck} onChange={e => setForceRecheck(e.target.checked)} />
+          Re-check films that already have a poster (use this to fix any wrong posters saved previously)
+        </label>
+        {posterResults && posterResults.notFound.length > 0 && (
+          <div style={{ marginTop: 14, paddingTop: 14, borderTop: `0.5px solid ${t.border}` }}>
+            <p style={{ fontSize: 12, fontWeight: 600, color: t.text, marginBottom: 8 }}>
+              No exact TMDB match found for {posterResults.notFound.length} film{posterResults.notFound.length !== 1 ? "s" : ""} — add these manually via the search box in Settings:
+            </p>
+            <ul style={{ paddingLeft: 18, margin: 0 }}>
+              {posterResults.notFound.map(f => (
+                <li key={f} style={{ fontSize: 12, color: t.textSub, marginBottom: 3 }}>{f}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </Card>
+
       <SL t={t}>marxist mode</SL>
       <Card t={t} style={{ marginBottom: 24 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>

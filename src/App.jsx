@@ -75,6 +75,7 @@ const THEMES = {
     text: "#1A1714", textSub: "#4A4540", textMuted: "#8C8078",
     header: "#FFFFFF", navActive: "#1A1714", navInactive: "#8C8078",
     gold: GOLD, goldBg: "#FBF5E6", selectBg: "#F0EDE6", rowAlt: "#FAF8F5",
+    red: "#B71C1C", redBg: "#FFEBEE",
   },
   dark: {
     bg: "#0A0A0A", surface: "#141414", surface2: "#1E1E1E",
@@ -82,6 +83,7 @@ const THEMES = {
     text: "#F0EDE8", textSub: "#A8A29E", textMuted: "#6B6560",
     header: "#0F0F0F", navActive: GOLD, navInactive: "#6B6560",
     gold: GOLD, goldBg: "#1E1A0E", selectBg: "#1E1E1E", rowAlt: "#161616",
+    red: "#EF5350", redBg: "#1A0A0A",
   },
 };
 
@@ -133,21 +135,20 @@ function getPlayerOscarTotals(player, draft, scoring) {
 }
 
 // ── Supabase helpers ──────────────────────────────────────────────────────────
+async function dbGet(key) {
+  const { data } = await supabase.from("settings").select("value").eq("league_id", LEAGUE_ID).eq("key", key).single();
+  return data?.value;
+}
+async function dbSet(key, value) {
+  await supabase.from("settings").upsert({ league_id: LEAGUE_ID, key, value }, { onConflict: "league_id,key" });
+}
 async function dbGetPlayers() {
-  const { data } = await supabase.from("settings").select("value").eq("league_id", LEAGUE_ID).eq("key", "players").single();
-  if (data?.value) return JSON.parse(data.value);
-  return [...DEFAULT_PLAYERS];
+  const v = await dbGet("players");
+  return v ? JSON.parse(v) : [...DEFAULT_PLAYERS];
 }
-async function dbSetPlayers(players) {
-  await supabase.from("settings").upsert({ league_id: LEAGUE_ID, key: "players", value: JSON.stringify(players) }, { onConflict: "league_id,key" });
-}
-async function dbGetLeagueName() {
-  const { data } = await supabase.from("settings").select("value").eq("league_id", LEAGUE_ID).eq("key", "league_name").single();
-  return data?.value || "The 2026 Film League";
-}
-async function dbSetLeagueName(name) {
-  await supabase.from("settings").upsert({ league_id: LEAGUE_ID, key: "league_name", value: name }, { onConflict: "league_id,key" });
-}
+async function dbGetLeagueName() { return (await dbGet("league_name")) || "The 2026 Film League"; }
+async function dbGetMarxistMode() { return (await dbGet("marxist_mode")) === "true"; }
+async function dbSetMarxistMode(val) { await dbSet("marxist_mode", String(val)); }
 async function dbGetDraft(players) {
   const { data } = await supabase.from("draft_picks").select("*").eq("league_id", LEAGUE_ID);
   const draft = {};
@@ -171,9 +172,7 @@ async function dbGetMovies() {
   const { data } = await supabase.from("movies").select("title").eq("league_id", LEAGUE_ID).order("created_at");
   return data?.map(r => r.title) || [];
 }
-async function dbAddMovie(title) {
-  await supabase.from("movies").insert({ league_id: LEAGUE_ID, title });
-}
+async function dbAddMovie(title) { await supabase.from("movies").insert({ league_id: LEAGUE_ID, title }); }
 async function dbRenameMovie(oldTitle, newTitle) {
   await supabase.from("movies").update({ title: newTitle }).eq("league_id", LEAGUE_ID).eq("title", oldTitle);
   await supabase.from("draft_picks").update({ film: newTitle }).eq("league_id", LEAGUE_ID).eq("film", oldTitle);
@@ -186,8 +185,7 @@ async function dbRenameMovie(oldTitle, newTitle) {
 async function dbRenamePlayer(oldName, newName, players) {
   await supabase.from("draft_picks").update({ player_name: newName }).eq("league_id", LEAGUE_ID).eq("player_name", oldName);
   const newPlayers = players.map(p => p === oldName ? newName : p);
-  await dbSetPlayers(newPlayers);
-  // Update user assignment if any
+  await dbSet("players", JSON.stringify(newPlayers));
   await supabase.from("users").update({ player_name: newName }).eq("league_id", LEAGUE_ID).eq("player_name", oldName);
   return newPlayers;
 }
@@ -204,7 +202,7 @@ async function dbGetCurrentUser(userId) {
 }
 
 // ── Auth components ───────────────────────────────────────────────────────────
-function AuthPage({ t, onAuth }) {
+function AuthModal({ t, onAuth, onClose }) {
   const [mode, setMode] = useState("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -231,14 +229,12 @@ function AuthPage({ t, onAuth }) {
   const inp = { width: "100%", fontSize: 14, padding: "10px 12px", borderRadius: 8, border: `0.5px solid ${t.border}`, background: t.surface2, color: t.text, marginBottom: 12 };
 
   return (
-    <div style={{ minHeight: "100vh", background: t.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Inter', system-ui, sans-serif" }}>
-      <div style={{ width: 360, background: t.surface, border: `0.5px solid ${t.border}`, borderRadius: 16, padding: 32 }}>
-        <div style={{ textAlign: "center", marginBottom: 28 }}>
-          <div style={{ fontSize: 28, marginBottom: 8 }}>🎬</div>
-          <h1 style={{ fontSize: 18, fontWeight: 700, color: t.gold, marginBottom: 4 }}>Fantasy Film League</h1>
-          <p style={{ fontSize: 13, color: t.textMuted }}>The 2026 season</p>
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }} onClick={onClose}>
+      <div style={{ width: 360, background: t.surface, border: `0.5px solid ${t.border}`, borderRadius: 16, padding: 32 }} onClick={e => e.stopPropagation()}>
+        <div style={{ textAlign: "center", marginBottom: 24 }}>
+          <h2 style={{ fontSize: 16, fontWeight: 700, color: t.text, marginBottom: 4 }}>Sign in to edit</h2>
+          <p style={{ fontSize: 13, color: t.textMuted }}>Fantasy Film League · 2026</p>
         </div>
-
         <div style={{ display: "flex", marginBottom: 20, background: t.surface2, borderRadius: 8, padding: 3 }}>
           {["login","signup"].map(m => (
             <button key={m} onClick={() => { setMode(m); setError(""); }} style={{ flex: 1, padding: "7px 0", fontSize: 13, fontWeight: mode === m ? 600 : 400, color: mode === m ? t.text : t.textMuted, background: mode === m ? t.surface : "transparent", border: "none", borderRadius: 6, cursor: "pointer" }}>
@@ -246,21 +242,13 @@ function AuthPage({ t, onAuth }) {
             </button>
           ))}
         </div>
-
         <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} style={inp} />
         <input type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === "Enter" && handleSubmit()} style={{ ...inp, marginBottom: error ? 8 : 16 }} />
-
-        {error && <p style={{ fontSize: 12, color: "#E74C3C", marginBottom: 12 }}>{error}</p>}
-
+        {error && <p style={{ fontSize: 12, color: t.red, marginBottom: 12 }}>{error}</p>}
         <button onClick={handleSubmit} disabled={loading} style={{ width: "100%", padding: "11px 0", fontSize: 14, fontWeight: 600, color: "#fff", background: t.gold, border: "none", borderRadius: 8, cursor: loading ? "default" : "pointer", opacity: loading ? 0.7 : 1 }}>
-          {loading ? "..." : mode === "login" ? "Log in" : "Create account"}
+          {loading ? "…" : mode === "login" ? "Log in" : "Create account"}
         </button>
-
-        {mode === "signup" && (
-          <p style={{ fontSize: 12, color: t.textMuted, textAlign: "center", marginTop: 16, lineHeight: 1.5 }}>
-            After signing up, the commissioner will assign you to your team.
-          </p>
-        )}
+        {mode === "signup" && <p style={{ fontSize: 12, color: t.textMuted, textAlign: "center", marginTop: 12, lineHeight: 1.5 }}>After signing up, the commissioner will assign you to your team.</p>}
       </div>
     </div>
   );
@@ -272,9 +260,7 @@ function WaitingPage({ t, user, onSignOut }) {
       <div style={{ width: 360, background: t.surface, border: `0.5px solid ${t.border}`, borderRadius: 16, padding: 32, textAlign: "center" }}>
         <div style={{ fontSize: 32, marginBottom: 16 }}>⏳</div>
         <h2 style={{ fontSize: 16, fontWeight: 600, color: t.text, marginBottom: 8 }}>Waiting for team assignment</h2>
-        <p style={{ fontSize: 13, color: t.textMuted, lineHeight: 1.6, marginBottom: 24 }}>
-          You're signed in as <strong>{user.email}</strong>. The commissioner will assign you to your team shortly.
-        </p>
+        <p style={{ fontSize: 13, color: t.textMuted, lineHeight: 1.6, marginBottom: 24 }}>You're signed in as <strong>{user.email}</strong>. The commissioner will assign you to your team shortly.</p>
         <button onClick={onSignOut} style={{ fontSize: 13, color: t.textMuted, background: "none", border: `0.5px solid ${t.border}`, borderRadius: 6, padding: "7px 16px", cursor: "pointer" }}>Sign out</button>
       </div>
     </div>
@@ -286,12 +272,14 @@ export default function App() {
   const [authUser, setAuthUser] = useState(null);
   const [dbUser, setDbUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [showAuthModal, setShowAuthModal] = useState(false);
 
   const [players, setPlayers] = useState([...DEFAULT_PLAYERS]);
   const [draft, setDraft] = useState(() => { const d = {}; DEFAULT_PLAYERS.forEach(p => { d[p] = Array(9).fill(""); }); return d; });
   const [scoring, setScoring] = useState({});
   const [movies, setMovies] = useState([]);
   const [leagueName, setLeagueName] = useState("The 2026 Film League");
+  const [marxistMode, setMarxistMode] = useState(false);
   const [leagueUsers, setLeagueUsers] = useState([]);
   const [dataLoading, setDataLoading] = useState(true);
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem("darkMode") === "true");
@@ -301,13 +289,15 @@ export default function App() {
   const [toast, setToast] = useState(null);
 
   const t = darkMode ? THEMES.dark : THEMES.light;
-
-  // Derive permissions from current user
   const isCommissioner = authUser?.email === COMMISSIONER_EMAIL;
   const myPlayerName = dbUser?.player_name || null;
   const isAssigned = !!myPlayerName;
 
-  // Check auth state on mount
+  // canEdit: true if marxist mode is on, OR if user is commissioner, OR if user is assigned
+  const canEdit = marxistMode || isCommissioner || isAssigned;
+  // canEditOwn: can edit their own team name only
+  const canEditOwn = canEdit;
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setAuthUser(session?.user || null);
@@ -319,46 +309,62 @@ export default function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Load db user when auth user changes
   useEffect(() => {
     if (!authUser) { setDbUser(null); return; }
     dbGetCurrentUser(authUser.id).then(setDbUser);
   }, [authUser]);
 
-  // Load league data
   useEffect(() => {
-    if (!authUser) return;
     async function load() {
       setDataLoading(true);
-      const [name, loadedPlayers, movieData, scoreData, usersData] = await Promise.all([
-        dbGetLeagueName(), dbGetPlayers(), dbGetMovies(), dbGetScores(), dbGetLeagueUsers()
+      const [name, loadedPlayers, movieData, scoreData, usersData, marxist] = await Promise.all([
+        dbGetLeagueName(), dbGetPlayers(), dbGetMovies(), dbGetScores(), dbGetLeagueUsers(), dbGetMarxistMode()
       ]);
       setLeagueName(name);
       setPlayers(loadedPlayers);
       setMovies(movieData);
       setScoring(scoreData);
       setLeagueUsers(usersData);
+      setMarxistMode(marxist);
       const draftData = await dbGetDraft(loadedPlayers);
       setDraft(draftData);
       setDataLoading(false);
     }
     load();
 
-    const scoreSub = supabase.channel("scores_ch").on("postgres_changes", { event: "*", schema: "public", table: "scores", filter: `league_id=eq.${LEAGUE_ID}` }, () => dbGetScores().then(setScoring)).subscribe();
-    const draftSub = supabase.channel("draft_ch").on("postgres_changes", { event: "*", schema: "public", table: "draft_picks", filter: `league_id=eq.${LEAGUE_ID}` }, async () => { const p = await dbGetPlayers(); setPlayers(p); const d = await dbGetDraft(p); setDraft(d); }).subscribe();
-    const movieSub = supabase.channel("movies_ch").on("postgres_changes", { event: "*", schema: "public", table: "movies", filter: `league_id=eq.${LEAGUE_ID}` }, () => dbGetMovies().then(setMovies)).subscribe();
-    const settingsSub = supabase.channel("settings_ch").on("postgres_changes", { event: "*", schema: "public", table: "settings", filter: `league_id=eq.${LEAGUE_ID}` }, async () => { const name = await dbGetLeagueName(); setLeagueName(name); const p = await dbGetPlayers(); setPlayers(p); }).subscribe();
-    const usersSub = supabase.channel("users_ch").on("postgres_changes", { event: "*", schema: "public", table: "users", filter: `league_id=eq.${LEAGUE_ID}` }, async () => { const u = await dbGetLeagueUsers(); setLeagueUsers(u); if (authUser) { const me = await dbGetCurrentUser(authUser.id); setDbUser(me); } }).subscribe();
+    const scoreSub = supabase.channel("sc").on("postgres_changes", { event: "*", schema: "public", table: "scores", filter: `league_id=eq.${LEAGUE_ID}` }, () => dbGetScores().then(setScoring)).subscribe();
+    const draftSub = supabase.channel("dr").on("postgres_changes", { event: "*", schema: "public", table: "draft_picks", filter: `league_id=eq.${LEAGUE_ID}` }, async () => { const p = await dbGetPlayers(); setPlayers(p); setDraft(await dbGetDraft(p)); }).subscribe();
+    const movieSub = supabase.channel("mv").on("postgres_changes", { event: "*", schema: "public", table: "movies", filter: `league_id=eq.${LEAGUE_ID}` }, () => dbGetMovies().then(setMovies)).subscribe();
+    const settingsSub = supabase.channel("st").on("postgres_changes", { event: "*", schema: "public", table: "settings", filter: `league_id=eq.${LEAGUE_ID}` }, async () => {
+      setLeagueName(await dbGetLeagueName());
+      const p = await dbGetPlayers(); setPlayers(p);
+      setMarxistMode(await dbGetMarxistMode());
+    }).subscribe();
+    const usersSub = supabase.channel("us").on("postgres_changes", { event: "*", schema: "public", table: "users", filter: `league_id=eq.${LEAGUE_ID}` }, async () => {
+      setLeagueUsers(await dbGetLeagueUsers());
+      if (authUser) setDbUser(await dbGetCurrentUser(authUser.id));
+    }).subscribe();
 
     return () => { scoreSub.unsubscribe(); draftSub.unsubscribe(); movieSub.unsubscribe(); settingsSub.unsubscribe(); usersSub.unsubscribe(); };
   }, [authUser]);
 
   function showToast(msg) { setToast(msg); setTimeout(() => setToast(null), 2000); }
   function toggleDark() { setDarkMode(d => { localStorage.setItem("darkMode", !d); return !d; }); }
-
   async function signOut() { await supabase.auth.signOut(); setAuthUser(null); setDbUser(null); }
 
-  async function updateLeagueName(name) { setLeagueName(name); await dbSetLeagueName(name); showToast("Saved"); }
+  function requireAuth(action) {
+    if (marxistMode || isCommissioner || isAssigned) { action(); }
+    else { setShowAuthModal(true); }
+  }
+
+  async function toggleMarxistMode() {
+    const next = !marxistMode;
+    setMarxistMode(next);
+    await dbSetMarxistMode(next);
+    showToast(next ? "☭ Marxist Mode enabled" : "Marxist Mode disabled");
+  }
+
+  async function updateLeagueName(name) { setLeagueName(name); await dbSet("league_name", name); showToast("Saved"); }
 
   async function renamePlayer(oldName, newName) {
     if (!newName.trim() || newName === oldName) return;
@@ -429,19 +435,19 @@ export default function App() {
 
   const css = `* { box-sizing: border-box; margin: 0; padding: 0; } body { background: ${t.bg}; } select { appearance: none; -webkit-appearance: none; } input[type=checkbox] { accent-color: ${t.gold}; width: 15px; height: 15px; cursor: pointer; } .clickable:hover { opacity: 0.75; }`;
 
-  // Auth gates
-  if (authLoading) return <Loader t={t} />;
-  if (!authUser) return <AuthPage t={t} onAuth={user => { setAuthUser(user); }} />;
-  if (dataLoading) return <Loader t={t} />;
-  if (!isCommissioner && !isAssigned) return <WaitingPage t={t} user={authUser} onSignOut={signOut} />;
+  if (authLoading || dataLoading) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: t.bg, color: t.textMuted, fontFamily: "system-ui", fontSize: 14 }}>Loading…</div>;
 
-  const inviteUrl = `${window.location.origin}`;
+  // Only show waiting page if logged in but not yet assigned (and not commissioner)
+  if (authUser && !isCommissioner && !isAssigned) return <WaitingPage t={t} user={authUser} onSignOut={signOut} />;
+
+  const tabs = ["leaderboard","draft board","scoring","all time","settings"];
+  if (isCommissioner) tabs.push("commissioner");
 
   return (
     <div style={{ fontFamily: "'Inter', system-ui, sans-serif", minHeight: "100vh", background: t.bg, color: t.text }}>
       <style>{css}</style>
-      <h2 className="sr-only">Fantasy Film League — 2026 season</h2>
 
+      {showAuthModal && <AuthModal t={t} onAuth={user => { setAuthUser(user); setShowAuthModal(false); }} onClose={() => setShowAuthModal(false)} />}
       {toast && <div style={{ position: "fixed", top: 16, right: 16, background: t.gold, color: darkMode ? "#0A0A0A" : "#fff", padding: "9px 14px", borderRadius: 8, fontSize: 13, fontWeight: 500, zIndex: 999 }}>{toast}</div>}
 
       <header style={{ background: t.header, borderBottom: `0.5px solid ${t.border}`, padding: "0 1.5rem", display: "flex", alignItems: "center", justifyContent: "space-between", height: 54 }}>
@@ -449,34 +455,38 @@ export default function App() {
           <span style={{ fontSize: 15, fontWeight: 600, color: t.gold }}>🎬</span>
           <span style={{ fontSize: 14, fontWeight: 600, color: t.text }}>Fantasy Film League</span>
           <span style={{ fontSize: 12, color: t.textMuted, borderLeft: `0.5px solid ${t.border}`, paddingLeft: 10 }}>{leagueName}</span>
+          {marxistMode && <span style={{ fontSize: 11, color: t.red, border: `0.5px solid ${t.red}`, padding: "2px 7px", borderRadius: 4, fontWeight: 600 }}>☭ Marxist Mode</span>}
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ fontSize: 12, color: t.textSub }}>{myPlayerName || (isCommissioner ? "Commissioner" : authUser.email)}</span>
-          {isCommissioner && <span style={{ fontSize: 11, color: t.gold, border: `0.5px solid ${t.gold}`, padding: "2px 7px", borderRadius: 4 }}>commissioner</span>}
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {authUser ? (
+            <>
+              <span style={{ fontSize: 12, color: t.textSub }}>{myPlayerName || (isCommissioner ? "Commissioner" : authUser.email)}</span>
+              {isCommissioner && <span style={{ fontSize: 11, color: t.gold, border: `0.5px solid ${t.gold}`, padding: "2px 7px", borderRadius: 4 }}>commissioner</span>}
+              <button onClick={signOut} style={{ background: "none", border: `0.5px solid ${t.border}`, borderRadius: 6, padding: "5px 10px", fontSize: 12, color: t.textMuted, cursor: "pointer" }}>Sign out</button>
+            </>
+          ) : (
+            <button onClick={() => setShowAuthModal(true)} style={{ background: "none", border: `0.5px solid ${t.border}`, borderRadius: 6, padding: "5px 12px", fontSize: 12, color: t.textSub, cursor: "pointer" }}>Log in</button>
+          )}
           <button onClick={toggleDark} style={{ background: t.surface2, border: `0.5px solid ${t.border}`, borderRadius: 6, padding: "5px 10px", fontSize: 12, color: t.textSub, cursor: "pointer" }}>{darkMode ? "☀" : "☾"}</button>
-          <button onClick={signOut} style={{ background: "none", border: `0.5px solid ${t.border}`, borderRadius: 6, padding: "5px 10px", fontSize: 12, color: t.textMuted, cursor: "pointer" }}>Sign out</button>
         </div>
       </header>
 
       <nav style={{ background: t.header, borderBottom: `0.5px solid ${t.border}`, padding: "0 1.5rem", display: "flex" }}>
-        {["leaderboard","draft board","scoring","all time","settings"].map(tb => (
-          <button key={tb} onClick={() => setTab(tb)} style={{ padding: "12px 16px", fontSize: 13, fontWeight: tab === tb ? 600 : 400, color: tab === tb ? t.navActive : t.navInactive, borderBottom: tab === tb ? `2px solid ${t.navActive}` : "2px solid transparent", background: "none", border: "none", borderBottom: tab === tb ? `2px solid ${t.navActive}` : "2px solid transparent", cursor: "pointer" }}>{tb}</button>
+        {tabs.map(tb => (
+          <button key={tb} onClick={() => setTab(tb)} style={{ padding: "12px 16px", fontSize: 13, fontWeight: tab === tb ? 600 : 400, color: tab === tb ? t.navActive : tb === "commissioner" ? t.gold : t.navInactive, borderBottom: tab === tb ? `2px solid ${tab === "commissioner" ? t.gold : t.navActive}` : "2px solid transparent", background: "none", border: "none", borderBottom: tab === tb ? `2px solid ${tab === "commissioner" ? t.gold : t.navActive}` : "2px solid transparent", cursor: "pointer" }}>{tb}</button>
         ))}
       </nav>
 
       <main style={{ maxWidth: 880, margin: "0 auto", padding: "1.5rem" }}>
-        {tab === "leaderboard" && <Leaderboard rankedPlayers={rankedPlayers} getPlayerTotal={getPlayerTotal} draft={draft} scoring={scoringWithMeta} t={t} goToPlayerDraft={goToPlayerDraft} />}
-        {tab === "draft board" && <DraftBoard draft={draft} players={players} movies={movies} isCommissioner={isCommissioner} updateDraftPick={updateDraftPick} scoring={scoringWithMeta} goToFilmScoring={goToFilmScoring} t={t} focusPlayer={draftFocusPlayer} />}
-        {tab === "scoring"     && <Scoring scoring={scoringWithMeta} movies={movies} isCommissioner={isCommissioner} updateScoring={updateScoring} updateScoringRoot={updateScoringRoot} updateOscarField={updateOscarField} updateMovieName={updateMovieName} scoringFilm={scoringFilm} setScoringFilm={setScoringFilm} showToast={showToast} t={t} />}
-        {tab === "all time"    && <AllTime players={players} getPlayerTotal={getPlayerTotal} getAllTimeTotal={getAllTimeTotal} t={t} />}
-        {tab === "settings"    && <Settings movies={movies} players={players} isCommissioner={isCommissioner} myPlayerName={myPlayerName} updateMovieName={updateMovieName} addMovie={addMovie} renamePlayer={renamePlayer} leagueName={leagueName} updateLeagueName={updateLeagueName} leagueUsers={leagueUsers} assignPlayer={assignPlayer} inviteUrl={inviteUrl} t={t} showToast={showToast} />}
+        {tab === "leaderboard"  && <Leaderboard rankedPlayers={rankedPlayers} getPlayerTotal={getPlayerTotal} draft={draft} scoring={scoringWithMeta} t={t} goToPlayerDraft={goToPlayerDraft} />}
+        {tab === "draft board"  && <DraftBoard draft={draft} players={players} movies={movies} canEdit={canEdit} isCommissioner={isCommissioner} updateDraftPick={updateDraftPick} requireAuth={requireAuth} scoring={scoringWithMeta} goToFilmScoring={goToFilmScoring} t={t} focusPlayer={draftFocusPlayer} />}
+        {tab === "scoring"      && <Scoring scoring={scoringWithMeta} movies={movies} canEdit={canEdit} isCommissioner={isCommissioner} requireAuth={requireAuth} updateScoring={updateScoring} updateScoringRoot={updateScoringRoot} updateOscarField={updateOscarField} updateMovieName={updateMovieName} scoringFilm={scoringFilm} setScoringFilm={setScoringFilm} showToast={showToast} t={t} />}
+        {tab === "all time"     && <AllTime players={players} getPlayerTotal={getPlayerTotal} getAllTimeTotal={getAllTimeTotal} t={t} />}
+        {tab === "settings"     && <Settings movies={movies} players={players} canEdit={canEdit} myPlayerName={myPlayerName} marxistMode={marxistMode} updateMovieName={updateMovieName} addMovie={addMovie} renamePlayer={renamePlayer} t={t} showToast={showToast} requireAuth={requireAuth} isCommissioner={isCommissioner} />}
+        {tab === "commissioner" && isCommissioner && <CommissionerSettings leagueName={leagueName} updateLeagueName={updateLeagueName} marxistMode={marxistMode} toggleMarxistMode={toggleMarxistMode} leagueUsers={leagueUsers} players={players} assignPlayer={assignPlayer} t={t} showToast={showToast} />}
       </main>
     </div>
   );
-}
-
-function Loader({ t }) {
-  return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: t.bg, color: t.textMuted, fontFamily: "system-ui", fontSize: 14 }}>Loading…</div>;
 }
 
 function SL({ children, t }) {
@@ -527,7 +537,7 @@ function Leaderboard({ rankedPlayers, getPlayerTotal, draft, scoring, t, goToPla
   );
 }
 
-function DraftBoard({ draft, players, movies, isCommissioner, updateDraftPick, scoring, goToFilmScoring, t, focusPlayer }) {
+function DraftBoard({ draft, players, movies, canEdit, isCommissioner, updateDraftPick, requireAuth, scoring, goToFilmScoring, t, focusPlayer }) {
   const sel = { width: "100%", fontSize: 12, padding: "5px 7px", borderRadius: 6, border: `0.5px solid ${t.border}`, background: t.selectBg, color: t.text, cursor: "pointer" };
   useEffect(() => {
     if (focusPlayer) {
@@ -550,17 +560,17 @@ function DraftBoard({ draft, players, movies, isCommissioner, updateDraftPick, s
               <span style={{ fontSize: 13, fontFamily: "monospace", color: t.gold, fontWeight: 600 }}>{total} pts</span>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(175px, 1fr))", gap: 8 }}>
-              {ROUNDS.map((round, ri) => {
-                const film = picks[ri] || "";
+              {picks.map((film, ri) => {
+                const round = ["1","2","3","4","5","6","7","S1","S2"][ri];
                 const score = film ? calcFilmScore(film, scoring) : null;
                 const status = film ? getFilmOscarStatus(film, scoring) : {};
                 const { nominated, winner } = status;
                 return (
-                  <div key={round} style={{ position: "relative", background: winner ? t.goldBg : t.surface2, border: winner ? `2px solid ${t.gold}` : nominated ? `1.5px solid ${t.gold}` : `0.5px solid ${t.border}`, borderRadius: 8, padding: "8px 10px" }}>
+                  <div key={ri} style={{ position: "relative", background: winner ? t.goldBg : t.surface2, border: winner ? `2px solid ${t.gold}` : nominated ? `1.5px solid ${t.gold}` : `0.5px solid ${t.border}`, borderRadius: 8, padding: "8px 10px" }}>
                     {winner && <span style={{ position: "absolute", top: -1, right: 6, fontSize: 9, background: t.gold, color: "#fff", padding: "1px 5px", borderRadius: "0 0 4px 4px", fontWeight: 700 }}>BEST PIC ✦</span>}
                     {nominated && !winner && <span style={{ position: "absolute", top: -1, right: 6, fontSize: 9, background: t.goldBg, color: t.gold, padding: "1px 5px", borderRadius: "0 0 4px 4px", border: `0.5px solid ${t.gold}`, fontWeight: 600 }}>BP NOM</span>}
                     <div style={{ fontSize: 10, color: t.textMuted, marginBottom: 5, fontWeight: 600, letterSpacing: "0.06em" }}>RD {round}</div>
-                    {isCommissioner ? (
+                    {canEdit && isCommissioner ? (
                       <select value={film} onChange={e => updateDraftPick(player, ri, e.target.value)} style={sel}>
                         <option value="">— select —</option>
                         {movies.map(m => <option key={m} value={m}>{m}</option>)}
@@ -585,7 +595,7 @@ function DraftBoard({ draft, players, movies, isCommissioner, updateDraftPick, s
   );
 }
 
-function Scoring({ scoring, movies, isCommissioner, updateScoring, updateScoringRoot, updateOscarField, updateMovieName, scoringFilm, setScoringFilm, showToast, t }) {
+function Scoring({ scoring, movies, canEdit, isCommissioner, requireAuth, updateScoring, updateScoringRoot, updateOscarField, updateMovieName, scoringFilm, setScoringFilm, showToast, t }) {
   const [film, setFilm] = useState(scoringFilm || movies[0]);
   const [renaming, setRenaming] = useState(false);
   const [renameVal, setRenameVal] = useState("");
@@ -597,22 +607,23 @@ function Scoring({ scoring, movies, isCommissioner, updateScoring, updateScoring
   const biggestOpening = scoring._biggestOpeningFilm || "";
   const mostNumber1 = scoring._mostNumber1Film || "";
 
-  function set(field, val) { updateScoring(film, field, val); }
+  function withAuth(fn) { if (canEdit) fn(); else requireAuth(fn); }
+  function set(field, val) { withAuth(() => updateScoring(film, field, val)); }
 
-  const sel = { width: "100%", fontSize: 13, padding: "8px 10px", borderRadius: 7, border: `0.5px solid ${t.border}`, background: t.selectBg, color: t.text, cursor: "pointer" };
+  const sel = { width: "100%", fontSize: 13, padding: "8px 10px", borderRadius: 7, border: `0.5px solid ${t.border}`, background: t.selectBg, color: t.text, cursor: canEdit ? "pointer" : "default" };
   const lbl = { fontSize: 11, fontWeight: 600, color: t.textMuted, letterSpacing: "0.08em", textTransform: "uppercase", display: "block", marginBottom: 6 };
 
   return (
     <div>
       <div style={{ background: status.winner ? t.goldBg : t.surface, border: status.winner ? `2px solid ${t.gold}` : status.nominated ? `1.5px solid ${t.gold}` : `0.5px solid ${t.border}`, borderRadius: 10, padding: "14px 16px", marginBottom: 14 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: renaming ? 10 : 0 }}>
-          <select value={film} onChange={e => { setFilm(e.target.value); setScoringFilm(e.target.value); setRenaming(false); }} style={{ ...sel, flex: 1, maxWidth: 340, fontWeight: 600, fontSize: 14 }}>
+          <select value={film} onChange={e => { setFilm(e.target.value); setScoringFilm(e.target.value); setRenaming(false); }} style={{ ...sel, flex: 1, maxWidth: 340, fontWeight: 600, fontSize: 14, cursor: "pointer" }}>
             {movies.map(m => <option key={m} value={m}>{m}</option>)}
           </select>
           <span style={{ fontSize: 20, fontWeight: 700, fontFamily: "monospace", color: t.gold }}>{total}</span>
           {status.winner && <span style={{ fontSize: 11, background: t.gold, color: "#fff", padding: "3px 9px", borderRadius: 5, fontWeight: 700 }}>BEST PICTURE ✦</span>}
           {status.nominated && !status.winner && <span style={{ fontSize: 11, background: t.goldBg, color: t.gold, padding: "3px 9px", borderRadius: 5, border: `0.5px solid ${t.gold}`, fontWeight: 600 }}>BP NOM</span>}
-          {isCommissioner && !renaming && <button onClick={() => { setRenaming(true); setRenameVal(film); }} style={{ fontSize: 11, color: t.textMuted, background: "none", border: `0.5px solid ${t.border}`, borderRadius: 5, cursor: "pointer", padding: "3px 8px" }}>rename</button>}
+          {(canEdit || isCommissioner) && !renaming && <button onClick={() => withAuth(() => { setRenaming(true); setRenameVal(film); })} style={{ fontSize: 11, color: t.textMuted, background: "none", border: `0.5px solid ${t.border}`, borderRadius: 5, cursor: "pointer", padding: "3px 8px" }}>rename</button>}
         </div>
         {renaming && (
           <div style={{ display: "flex", gap: 8 }}>
@@ -623,12 +634,15 @@ function Scoring({ scoring, movies, isCommissioner, updateScoring, updateScoring
         )}
       </div>
 
-      {!isCommissioner && <Card t={t} style={{ marginBottom: 10, fontSize: 13, color: t.textSub }}>Only the commissioner can update scores.</Card>}
+      {!canEdit && <Card t={t} style={{ marginBottom: 10, fontSize: 13, color: t.textSub, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span>Log in to edit scores</span>
+        <button onClick={() => requireAuth(() => {})} style={{ fontSize: 12, padding: "5px 12px", borderRadius: 6, border: "none", background: t.gold, color: "#fff", cursor: "pointer", fontWeight: 600 }}>Log in</button>
+      </Card>}
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
         <Card t={t}>
           <span style={lbl}>Box office</span>
-          <select disabled={!isCommissioner} value={fs.bo || ""} onChange={e => set("bo", e.target.value)} style={sel}>
+          <select disabled={!canEdit} value={fs.bo || ""} onChange={e => set("bo", e.target.value)} style={sel}>
             <option value="">— select tier —</option>
             {BO_TIERS.map(tier => <option key={tier.label} value={tier.label}>{tier.label} = {tier.pts} pts</option>)}
           </select>
@@ -637,11 +651,11 @@ function Scoring({ scoring, movies, isCommissioner, updateScoring, updateScoring
         <Card t={t}>
           <span style={lbl}>Rotten tomatoes</span>
           <label style={{ fontSize: 12, color: t.textMuted, display: "block", marginBottom: 4 }}>Critics</label>
-          <select disabled={!isCommissioner} value={fs.criticsRT || ""} onChange={e => set("criticsRT", e.target.value)} style={{ ...sel, marginBottom: 8 }}>
+          <select disabled={!canEdit} value={fs.criticsRT || ""} onChange={e => set("criticsRT", e.target.value)} style={{ ...sel, marginBottom: 8 }}>
             {RT_OPTIONS.map(o => <option key={o} value={o}>{o || "— select —"}</option>)}
           </select>
           <label style={{ fontSize: 12, color: t.textMuted, display: "block", marginBottom: 4 }}>Audience</label>
-          <select disabled={!isCommissioner} value={fs.audienceRT || ""} onChange={e => set("audienceRT", e.target.value)} style={sel}>
+          <select disabled={!canEdit} value={fs.audienceRT || ""} onChange={e => set("audienceRT", e.target.value)} style={sel}>
             {RT_AUD_OPTIONS.map(o => <option key={o} value={o}>{o || "— select —"}</option>)}
           </select>
           <p style={{ marginTop: 8, fontSize: 13, color: t.gold, fontFamily: "monospace", fontWeight: 600 }}>{getRTPoints(fs.criticsRT || "", fs.audienceRT || "")} pts</p>
@@ -659,8 +673,8 @@ function Scoring({ scoring, movies, isCommissioner, updateScoring, updateScoring
                   <span style={{ fontSize: 13, color: t.text, fontWeight: 500 }}>{label}</span>
                   {val && val !== film && <span style={{ fontSize: 11, color: t.textMuted, marginLeft: 8 }}>currently: {val}</span>}
                 </div>
-                <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: isChecked ? t.gold : t.textSub, fontWeight: isChecked ? 600 : 400, cursor: isCommissioner ? "pointer" : "default" }}>
-                  <input type="checkbox" disabled={!isCommissioner} checked={isChecked} onChange={e => updateScoringRoot(key, e.target.checked ? film : "")} />
+                <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: isChecked ? t.gold : t.textSub, fontWeight: isChecked ? 600 : 400, cursor: canEdit ? "pointer" : "default" }}>
+                  <input type="checkbox" disabled={!canEdit} checked={isChecked} onChange={e => withAuth(() => updateScoringRoot(key, e.target.checked ? film : ""))} />
                   {isChecked ? "+1 pt awarded" : "Award to this film"}
                 </label>
               </div>
@@ -683,11 +697,11 @@ function Scoring({ scoring, movies, isCommissioner, updateScoring, updateScoring
                   <span style={{ fontSize: 11, color: t.textMuted, marginLeft: 8 }}>nom {cat.nomPts} / win {cat.winPts}</span>
                 </div>
                 <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
-                  <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: t.textSub, cursor: isCommissioner ? "pointer" : "default" }}>
-                    <input type="checkbox" disabled={!isCommissioner} checked={isNom} onChange={e => { const cur = fs.oscarNoms?.[i] || []; updateOscarField(film, "oscarNoms", i, e.target.checked ? [...cur, film] : cur.filter(f => f !== film)); }} /> Nom
+                  <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: t.textSub, cursor: canEdit ? "pointer" : "default" }}>
+                    <input type="checkbox" disabled={!canEdit} checked={isNom} onChange={e => { const cur = fs.oscarNoms?.[i] || []; withAuth(() => updateOscarField(film, "oscarNoms", i, e.target.checked ? [...cur, film] : cur.filter(f => f !== film))); }} /> Nom
                   </label>
-                  <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: t.textSub, cursor: isCommissioner ? "pointer" : "default" }}>
-                    <input type="checkbox" disabled={!isCommissioner} checked={isWin} onChange={e => { updateOscarField(film, "oscarWinner", i, e.target.checked ? film : ""); }} /> Win
+                  <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: t.textSub, cursor: canEdit ? "pointer" : "default" }}>
+                    <input type="checkbox" disabled={!canEdit} checked={isWin} onChange={e => { withAuth(() => updateOscarField(film, "oscarWinner", i, e.target.checked ? film : "")); }} /> Win
                   </label>
                   {(isNom || isWin) && <span style={{ fontSize: 12, fontFamily: "monospace", color: t.gold, fontWeight: 700 }}>+{(isNom ? cat.nomPts : 0) + (isWin ? cat.winPts : 0)}</span>}
                 </div>
@@ -744,135 +758,28 @@ function AllTime({ players, getPlayerTotal, getAllTimeTotal, t }) {
   );
 }
 
-function Settings({ movies, players, isCommissioner, myPlayerName, updateMovieName, addMovie, renamePlayer, leagueName, updateLeagueName, leagueUsers, assignPlayer, inviteUrl, t, showToast }) {
-  const [editingLeague, setEditingLeague] = useState(false);
-  const [leagueVal, setLeagueVal] = useState(leagueName);
+function Settings({ movies, players, canEdit, myPlayerName, marxistMode, updateMovieName, addMovie, renamePlayer, t, showToast, requireAuth, isCommissioner }) {
   const [editingPlayer, setEditingPlayer] = useState(null);
   const [playerVal, setPlayerVal] = useState("");
   const [editingFilm, setEditingFilm] = useState(null);
   const [filmVal, setFilmVal] = useState("");
   const [newFilm, setNewFilm] = useState("");
   const [search, setSearch] = useState("");
-  const [copied, setCopied] = useState(false);
-
-  useEffect(() => { setLeagueVal(leagueName); }, [leagueName]);
 
   const filtered = movies.filter(m => m.toLowerCase().includes(search.toLowerCase()));
   const inp = { fontSize: 13, padding: "7px 10px", borderRadius: 7, border: `0.5px solid ${t.borderStrong}`, background: t.surface2, color: t.text };
-  const unassigned = leagueUsers.filter(u => !u.player_name);
-  const assigned = leagueUsers.filter(u => u.player_name);
 
-  function copyInvite() {
-    navigator.clipboard.writeText(inviteUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }
+  function withAuth(fn) { if (canEdit) fn(); else requireAuth(fn); }
 
   return (
     <div>
-      {isCommissioner && (
-        <>
-          <SL t={t}>invite link</SL>
-          <Card t={t} style={{ marginBottom: 20 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <span style={{ fontSize: 13, color: t.textSub, fontFamily: "monospace" }}>{inviteUrl}</span>
-              <button onClick={copyInvite} style={{ fontSize: 12, padding: "5px 14px", borderRadius: 6, border: `0.5px solid ${t.border}`, background: copied ? t.gold : "transparent", color: copied ? "#fff" : t.gold, cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap" }}>
-                {copied ? "Copied!" : "Copy link"}
-              </button>
-            </div>
-            <p style={{ fontSize: 11, color: t.textMuted, marginTop: 8 }}>Share this link with your league. After they sign up, assign them to their team below.</p>
-          </Card>
-
-          {unassigned.length > 0 && (
-            <>
-              <SL t={t}>waiting for assignment · {unassigned.length} member{unassigned.length !== 1 ? "s" : ""}</SL>
-              <div style={{ background: t.surface, border: `0.5px solid ${t.border}`, borderRadius: 10, overflow: "hidden", marginBottom: 20 }}>
-                {unassigned.map((user, i) => (
-                  <div key={user.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", borderBottom: i < unassigned.length - 1 ? `0.5px solid ${t.border}` : "none" }}>
-                    <span style={{ flex: 1, fontSize: 13, color: t.text }}>{user.email}</span>
-                    <select onChange={e => { if (e.target.value) assignPlayer(user.id, e.target.value); }} defaultValue="" style={{ ...inp, fontSize: 12, padding: "5px 8px" }}>
-                      <option value="">Assign to team…</option>
-                      {players.filter(p => !assigned.find(a => a.player_name === p)).map(p => <option key={p} value={p}>{p}</option>)}
-                    </select>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-
-          {assigned.length > 0 && (
-            <>
-              <SL t={t}>assigned members</SL>
-              <div style={{ background: t.surface, border: `0.5px solid ${t.border}`, borderRadius: 10, overflow: "hidden", marginBottom: 20 }}>
-                {assigned.map((user, i) => (
-                  <div key={user.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", borderBottom: i < assigned.length - 1 ? `0.5px solid ${t.border}` : "none", background: i % 2 === 0 ? t.surface : t.rowAlt }}>
-                    <span style={{ fontSize: 13, color: t.text, flex: 1 }}>{user.email}</span>
-                    <span style={{ fontSize: 12, color: t.gold, fontWeight: 600 }}>{user.player_name}</span>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-
-          <SL t={t}>league name</SL>
-          <Card t={t} style={{ marginBottom: 20 }}>
-            {editingLeague ? (
-              <div style={{ display: "flex", gap: 8 }}>
-                <input value={leagueVal} onChange={e => setLeagueVal(e.target.value)} onKeyDown={e => { if (e.key === "Enter") { updateLeagueName(leagueVal); setEditingLeague(false); } if (e.key === "Escape") setEditingLeague(false); }} autoFocus style={{ ...inp, flex: 1 }} />
-                <button onClick={() => { updateLeagueName(leagueVal); setEditingLeague(false); }} style={{ fontSize: 13, padding: "7px 16px", borderRadius: 7, border: "none", background: t.gold, color: "#fff", cursor: "pointer", fontWeight: 600 }}>Save</button>
-                <button onClick={() => setEditingLeague(false)} style={{ fontSize: 13, padding: "7px 12px", borderRadius: 7, border: `0.5px solid ${t.border}`, background: "transparent", color: t.textMuted, cursor: "pointer" }}>Cancel</button>
-              </div>
-            ) : (
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <span style={{ fontSize: 14, fontWeight: 500, color: t.text }}>{leagueName}</span>
-                <button onClick={() => { setEditingLeague(true); setLeagueVal(leagueName); }} style={{ fontSize: 12, color: t.gold, background: "none", border: "none", cursor: "pointer" }}>rename</button>
-              </div>
-            )}
-          </Card>
-
-          <SL t={t}>add a new film</SL>
-          <Card t={t} style={{ marginBottom: 20 }}>
-            <div style={{ display: "flex", gap: 8 }}>
-              <input value={newFilm} onChange={e => setNewFilm(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && newFilm.trim()) { addMovie(newFilm); setNewFilm(""); } }} placeholder="Film title..." style={{ ...inp, flex: 1 }} />
-              <button onClick={() => { if (newFilm.trim()) { addMovie(newFilm); setNewFilm(""); } }} style={{ fontSize: 13, padding: "7px 16px", borderRadius: 7, border: "none", background: t.gold, color: "#fff", cursor: "pointer", fontWeight: 600 }}>Add</button>
-            </div>
-          </Card>
-
-          <SL t={t}>edit film names</SL>
-          <Card t={t} style={{ marginBottom: 10 }}>
-            <input value={search} onChange={e => { setSearch(e.target.value); setEditingFilm(null); }} placeholder="Search films..." style={{ ...inp, width: "100%" }} />
-            {search && <p style={{ fontSize: 11, color: t.textMuted, marginTop: 6 }}>{filtered.length} result{filtered.length !== 1 ? "s" : ""}</p>}
-          </Card>
-          {filtered.length > 0 && search && (
-            <div style={{ background: t.surface, border: `0.5px solid ${t.border}`, borderRadius: 10, overflow: "hidden", marginBottom: 20 }}>
-              {filtered.map((film, i) => (
-                <div key={film} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 16px", borderBottom: i < filtered.length - 1 ? `0.5px solid ${t.border}` : "none", background: i % 2 === 0 ? t.surface : t.rowAlt }}>
-                  {editingFilm === film ? (
-                    <>
-                      <input value={filmVal} onChange={e => setFilmVal(e.target.value)} onKeyDown={e => { if (e.key === "Enter") { updateMovieName(film, filmVal); setEditingFilm(null); setSearch(""); } if (e.key === "Escape") setEditingFilm(null); }} autoFocus style={{ flex: 1, fontSize: 13, padding: "5px 9px", borderRadius: 6, border: `0.5px solid ${t.borderStrong}`, background: t.surface2, color: t.text }} />
-                      <button onClick={() => { updateMovieName(film, filmVal); setEditingFilm(null); setSearch(""); }} style={{ fontSize: 12, padding: "5px 12px", borderRadius: 6, border: "none", background: t.gold, color: "#fff", cursor: "pointer", fontWeight: 600 }}>Save</button>
-                      <button onClick={() => setEditingFilm(null)} style={{ fontSize: 12, padding: "5px 10px", borderRadius: 6, border: `0.5px solid ${t.border}`, background: "transparent", color: t.textMuted, cursor: "pointer" }}>Cancel</button>
-                    </>
-                  ) : (
-                    <>
-                      <span style={{ flex: 1, fontSize: 13, color: t.text }}>{film}</span>
-                      <button onClick={() => { setEditingFilm(film); setFilmVal(film); }} style={{ fontSize: 12, color: t.gold, background: "none", border: "none", cursor: "pointer", padding: "2px 6px" }}>rename</button>
-                    </>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </>
-      )}
-
       <SL t={t}>your team name</SL>
-      <div style={{ background: t.surface, border: `0.5px solid ${t.border}`, borderRadius: 10, overflow: "hidden" }}>
+      <div style={{ background: t.surface, border: `0.5px solid ${t.border}`, borderRadius: 10, overflow: "hidden", marginBottom: 24 }}>
         {players.map((player, i) => {
-          const isMyTeam = player === myPlayerName || (isCommissioner);
-          const canEdit = player === myPlayerName || isCommissioner;
+          const isMe = player === myPlayerName;
+          const canRename = isMe || isCommissioner || marxistMode;
           return (
-            <div key={player} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 16px", borderBottom: i < players.length - 1 ? `0.5px solid ${t.border}` : "none", background: player === myPlayerName ? t.goldBg : i % 2 === 0 ? t.surface : t.rowAlt }}>
+            <div key={player} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 16px", borderBottom: i < players.length - 1 ? `0.5px solid ${t.border}` : "none", background: isMe ? t.goldBg : i % 2 === 0 ? t.surface : t.rowAlt }}>
               <span style={{ width: 9, height: 9, borderRadius: "50%", background: PLAYER_COLORS[i % PLAYER_COLORS.length], display: "inline-block", flexShrink: 0 }} />
               {editingPlayer === player ? (
                 <>
@@ -882,14 +789,141 @@ function Settings({ movies, players, isCommissioner, myPlayerName, updateMovieNa
                 </>
               ) : (
                 <>
-                  <span style={{ flex: 1, fontSize: 13, color: t.text, fontWeight: player === myPlayerName ? 600 : 400 }}>{player}{player === myPlayerName && <span style={{ fontSize: 11, color: t.gold, marginLeft: 8 }}>· you</span>}</span>
-                  {canEdit && <button onClick={() => { setEditingPlayer(player); setPlayerVal(player); }} style={{ fontSize: 12, color: t.gold, background: "none", border: "none", cursor: "pointer", padding: "2px 6px" }}>rename</button>}
+                  <span style={{ flex: 1, fontSize: 13, color: t.text, fontWeight: isMe ? 600 : 400 }}>{player}{isMe && <span style={{ fontSize: 11, color: t.gold, marginLeft: 8 }}>· you</span>}</span>
+                  {canRename && <button onClick={() => withAuth(() => { setEditingPlayer(player); setPlayerVal(player); })} style={{ fontSize: 12, color: t.gold, background: "none", border: "none", cursor: "pointer", padding: "2px 6px" }}>rename</button>}
                 </>
               )}
             </div>
           );
         })}
       </div>
+
+      <SL t={t}>film management</SL>
+      <Card t={t} style={{ marginBottom: 12 }}>
+        <div style={{ display: "flex", gap: 8 }}>
+          <input value={newFilm} onChange={e => setNewFilm(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && newFilm.trim()) { withAuth(() => { addMovie(newFilm); setNewFilm(""); }); } }} placeholder="Add a new film..." style={{ ...inp, flex: 1 }} />
+          <button onClick={() => { if (newFilm.trim()) withAuth(() => { addMovie(newFilm); setNewFilm(""); }); }} style={{ fontSize: 13, padding: "7px 16px", borderRadius: 7, border: "none", background: t.gold, color: "#fff", cursor: "pointer", fontWeight: 600 }}>Add</button>
+        </div>
+      </Card>
+      <Card t={t} style={{ marginBottom: 10 }}>
+        <input value={search} onChange={e => { setSearch(e.target.value); setEditingFilm(null); }} placeholder="Search films to rename..." style={{ ...inp, width: "100%" }} />
+        {search && <p style={{ fontSize: 11, color: t.textMuted, marginTop: 6 }}>{filtered.length} result{filtered.length !== 1 ? "s" : ""}</p>}
+      </Card>
+      {filtered.length > 0 && search && (
+        <div style={{ background: t.surface, border: `0.5px solid ${t.border}`, borderRadius: 10, overflow: "hidden" }}>
+          {filtered.map((film, i) => (
+            <div key={film} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 16px", borderBottom: i < filtered.length - 1 ? `0.5px solid ${t.border}` : "none", background: i % 2 === 0 ? t.surface : t.rowAlt }}>
+              {editingFilm === film ? (
+                <>
+                  <input value={filmVal} onChange={e => setFilmVal(e.target.value)} onKeyDown={e => { if (e.key === "Enter") { updateMovieName(film, filmVal); setEditingFilm(null); setSearch(""); } if (e.key === "Escape") setEditingFilm(null); }} autoFocus style={{ flex: 1, fontSize: 13, padding: "5px 9px", borderRadius: 6, border: `0.5px solid ${t.borderStrong}`, background: t.surface2, color: t.text }} />
+                  <button onClick={() => { updateMovieName(film, filmVal); setEditingFilm(null); setSearch(""); }} style={{ fontSize: 12, padding: "5px 12px", borderRadius: 6, border: "none", background: t.gold, color: "#fff", cursor: "pointer", fontWeight: 600 }}>Save</button>
+                  <button onClick={() => setEditingFilm(null)} style={{ fontSize: 12, padding: "5px 10px", borderRadius: 6, border: `0.5px solid ${t.border}`, background: "transparent", color: t.textMuted, cursor: "pointer" }}>Cancel</button>
+                </>
+              ) : (
+                <>
+                  <span style={{ flex: 1, fontSize: 13, color: t.text }}>{film}</span>
+                  <button onClick={() => withAuth(() => { setEditingFilm(film); setFilmVal(film); })} style={{ fontSize: 12, color: t.gold, background: "none", border: "none", cursor: "pointer", padding: "2px 6px" }}>rename</button>
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      {search && filtered.length === 0 && <p style={{ fontSize: 13, color: t.textMuted, textAlign: "center", padding: "20px 0" }}>No films match "{search}"</p>}
+    </div>
+  );
+}
+
+function CommissionerSettings({ leagueName, updateLeagueName, marxistMode, toggleMarxistMode, leagueUsers, players, assignPlayer, t, showToast }) {
+  const [editingLeague, setEditingLeague] = useState(false);
+  const [leagueVal, setLeagueVal] = useState(leagueName);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => { setLeagueVal(leagueName); }, [leagueName]);
+
+  const inviteUrl = window.location.origin;
+  const unassigned = leagueUsers.filter(u => !u.player_name);
+  const assigned = leagueUsers.filter(u => u.player_name);
+  const inp = { fontSize: 13, padding: "7px 10px", borderRadius: 7, border: `0.5px solid ${t.borderStrong}`, background: t.surface2, color: t.text };
+
+  function copyInvite() { navigator.clipboard.writeText(inviteUrl); setCopied(true); setTimeout(() => setCopied(false), 2000); }
+
+  return (
+    <div>
+      <SL t={t}>marxist mode</SL>
+      <Card t={t} style={{ marginBottom: 24 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <p style={{ fontSize: 14, fontWeight: 600, color: marxistMode ? t.red : t.text, marginBottom: 4 }}>
+              {marxistMode ? "☭ Marxist Mode is ON" : "Marxist Mode is OFF"}
+            </p>
+            <p style={{ fontSize: 12, color: t.textMuted, lineHeight: 1.5 }}>
+              {marxistMode ? "Anyone can edit scores, picks, and film names — no login required." : "Only logged-in members can edit. Commissioner controls scoring."}
+            </p>
+          </div>
+          <button onClick={toggleMarxistMode} style={{ fontSize: 13, padding: "8px 16px", borderRadius: 8, border: `1.5px solid ${marxistMode ? t.red : t.border}`, background: marxistMode ? t.redBg : "transparent", color: marxistMode ? t.red : t.textSub, cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap", marginLeft: 16 }}>
+            {marxistMode ? "Disable" : "Enable ☭"}
+          </button>
+        </div>
+      </Card>
+
+      <SL t={t}>invite link</SL>
+      <Card t={t} style={{ marginBottom: 24 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <span style={{ fontSize: 13, color: t.textSub, fontFamily: "monospace" }}>{inviteUrl}</span>
+          <button onClick={copyInvite} style={{ fontSize: 12, padding: "5px 14px", borderRadius: 6, border: `0.5px solid ${t.border}`, background: copied ? t.gold : "transparent", color: copied ? "#fff" : t.gold, cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap", marginLeft: 12 }}>
+            {copied ? "Copied!" : "Copy link"}
+          </button>
+        </div>
+        <p style={{ fontSize: 11, color: t.textMuted, marginTop: 8 }}>Share with your league. After they sign up, assign them to their team below.</p>
+      </Card>
+
+      {unassigned.length > 0 && (
+        <>
+          <SL t={t}>waiting for assignment · {unassigned.length}</SL>
+          <div style={{ background: t.surface, border: `0.5px solid ${t.border}`, borderRadius: 10, overflow: "hidden", marginBottom: 24 }}>
+            {unassigned.map((user, i) => (
+              <div key={user.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", borderBottom: i < unassigned.length - 1 ? `0.5px solid ${t.border}` : "none" }}>
+                <span style={{ flex: 1, fontSize: 13, color: t.text }}>{user.email}</span>
+                <select onChange={e => { if (e.target.value) assignPlayer(user.id, e.target.value); }} defaultValue="" style={{ ...inp, fontSize: 12, padding: "5px 8px" }}>
+                  <option value="">Assign to team…</option>
+                  {players.filter(p => !assigned.find(a => a.player_name === p)).map(p => <option key={p} value={p}>{p}</option>)}
+                </select>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {assigned.length > 0 && (
+        <>
+          <SL t={t}>assigned members</SL>
+          <div style={{ background: t.surface, border: `0.5px solid ${t.border}`, borderRadius: 10, overflow: "hidden", marginBottom: 24 }}>
+            {assigned.map((user, i) => (
+              <div key={user.id} style={{ display: "flex", alignItems: "center", padding: "10px 16px", borderBottom: i < assigned.length - 1 ? `0.5px solid ${t.border}` : "none", background: i % 2 === 0 ? t.surface : t.rowAlt }}>
+                <span style={{ flex: 1, fontSize: 13, color: t.text }}>{user.email}</span>
+                <span style={{ fontSize: 12, color: t.gold, fontWeight: 600 }}>{user.player_name}</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      <SL t={t}>league name</SL>
+      <Card t={t}>
+        {editingLeague ? (
+          <div style={{ display: "flex", gap: 8 }}>
+            <input value={leagueVal} onChange={e => setLeagueVal(e.target.value)} onKeyDown={e => { if (e.key === "Enter") { updateLeagueName(leagueVal); setEditingLeague(false); } if (e.key === "Escape") setEditingLeague(false); }} autoFocus style={{ ...inp, flex: 1 }} />
+            <button onClick={() => { updateLeagueName(leagueVal); setEditingLeague(false); }} style={{ fontSize: 13, padding: "7px 16px", borderRadius: 7, border: "none", background: t.gold, color: "#fff", cursor: "pointer", fontWeight: 600 }}>Save</button>
+            <button onClick={() => setEditingLeague(false)} style={{ fontSize: 13, padding: "7px 12px", borderRadius: 7, border: `0.5px solid ${t.border}`, background: "transparent", color: t.textMuted, cursor: "pointer" }}>Cancel</button>
+          </div>
+        ) : (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span style={{ fontSize: 14, fontWeight: 500, color: t.text }}>{leagueName}</span>
+            <button onClick={() => { setEditingLeague(true); setLeagueVal(leagueName); }} style={{ fontSize: 12, color: t.gold, background: "none", border: "none", cursor: "pointer" }}>rename</button>
+          </div>
+        )}
+      </Card>
     </div>
   );
 }

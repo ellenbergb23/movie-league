@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { SL, Card } from "./ui";
+import { SL, CollapsibleSL, Card } from "./ui";
 
 export function CommissionerSettings({ leagueName, updateLeagueName, marxistMode, toggleMarxistMode, leagueUsers, players, assignPlayer, t, showToast, movies, backfillPosters, backfillScoring, scoring, deleteMovie, draft, applyUnreleasedData }) {
   const [editingLeague, setEditingLeague] = useState(false);
@@ -14,6 +14,10 @@ export function CommissionerSettings({ leagueName, updateLeagueName, marxistMode
   const [scoringRunning, setScoringRunning] = useState(false);
   const [scoringResults, setScoringResults] = useState(null);
   const [forceRecheckScoring, setForceRecheckScoring] = useState(false);
+  const [dismissedUnreleased, setDismissedUnreleased] = useState([]); // films clicked "Remain unreleased" — cleared on next fetch
+  const [looksReleasedOpen, setLooksReleasedOpen] = useState(true);
+  const [managedFilmsOpen, setManagedFilmsOpen] = useState(true);
+  const [skippedOpen, setSkippedOpen] = useState(false);
 
   async function runBackfill() {
     setPosterRunning(true);
@@ -27,10 +31,15 @@ export function CommissionerSettings({ leagueName, updateLeagueName, marxistMode
   async function runBackfillScoring() {
     setScoringRunning(true);
     setScoringResults(null);
+    setDismissedUnreleased([]);
     const results = await backfillScoring((current, total, film) => setScoringProgress({ current, total, film }), forceRecheckScoring);
     setScoringRunning(false);
     setScoringProgress(null);
     setScoringResults(results);
+  }
+
+  function remainUnreleased(film) {
+    setDismissedUnreleased(prev => [...prev, film]);
   }
 
   useEffect(() => { setLeagueVal(leagueName); }, [leagueName]);
@@ -59,6 +68,24 @@ export function CommissionerSettings({ leagueName, updateLeagueName, marxistMode
   }
 
   const filteredMovies = [...movies].sort((a, b) => a.localeCompare(b)).filter(f => f.toLowerCase().includes(filmFilter.trim().toLowerCase()));
+
+  // Merge every skip reason per film into one alphabetically-sorted list — purely informational.
+  function buildSkippedFilms(results) {
+    if (!results) return [];
+    const reasonsByFilm = {};
+    const addReason = (film, reason) => {
+      if (!reasonsByFilm[film]) reasonsByFilm[film] = [];
+      if (!reasonsByFilm[film].includes(reason)) reasonsByFilm[film].push(reason);
+    };
+    (results.boNotFound || []).forEach(f => addReason(f, "No box office data found"));
+    (results.boTooEarly || []).forEach(f => addReason(f, "Box office below $5M threshold"));
+    (results.rtNotFound || []).forEach(f => addReason(f, "No Rotten Tomatoes data found"));
+    (results.rtTooEarly || []).forEach(f => addReason(f, "Too early — not yet released"));
+    return Object.entries(reasonsByFilm)
+      .map(([film, reasons]) => ({ film, reasons }))
+      .sort((a, b) => a.film.localeCompare(b.film));
+  }
+  const skippedFilms = buildSkippedFilms(scoringResults);
 
   return (
     <div>
@@ -132,47 +159,27 @@ export function CommissionerSettings({ leagueName, updateLeagueName, marxistMode
           <div style={{ marginTop: 14, paddingTop: 14, borderTop: `0.5px solid ${t.border}` }}>
             <p style={{ fontSize: 12, fontWeight: 600, color: t.text, marginBottom: 6 }}>Box Office: {scoringResults.boUpdated} added · {scoringResults.boSkipped} skipped</p>
             <p style={{ fontSize: 12, fontWeight: 600, color: t.text }}>Rotten Tomatoes: {scoringResults.rtUpdated} added · {scoringResults.rtSkipped} skipped</p>
-            {(() => {
-              const tooEarlySet = new Set([...(scoringResults.boTooEarly || []), ...(scoringResults.rtTooEarly || [])]);
-              const tooEarlyFilms = [...tooEarlySet];
-              if (tooEarlyFilms.length === 0) return null;
-              return (
-                <div style={{ marginTop: 12, padding: "10px 12px", background: "#1A0A00", border: "0.5px solid #E65100", borderRadius: 8 }}>
-                  <p style={{ fontSize: 12, fontWeight: 700, color: "#FF8A65", marginBottom: 6 }}>
-                    ⏳ Skipped — too early ({tooEarlyFilms.length} film{tooEarlyFilms.length !== 1 ? "s" : ""})
-                  </p>
-                  <p style={{ fontSize: 11, color: "#FFCCBC", marginBottom: 8, lineHeight: 1.5 }}>
-                    These films had limited/preview data below the threshold. Run fetch again once they have a wide US release.
-                  </p>
-                  <ul style={{ paddingLeft: 16, margin: 0 }}>
-                    {tooEarlyFilms.map(f => {
-                      const boFlag = scoringResults.boTooEarly?.includes(f);
-                      const rtFlag = scoringResults.rtTooEarly?.includes(f);
-                      const reason = boFlag && rtFlag ? "BO + RT" : boFlag ? "Box office" : "RT scores";
-                      return (
-                        <li key={f} style={{ fontSize: 11, color: "#FFCCBC", marginBottom: 4, display: "flex", justifyContent: "space-between", alignItems: "center", maxWidth: 460 }}>
-                          <span>{f}</span>
-                          <span style={{ fontSize: 10, color: "#FF8A65", fontStyle: "italic", marginLeft: 8 }}>{reason} skipped</span>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </div>
-              );
-            })()}
-            {(() => {
-              // Live filter: drop any film the moment it's no longer marked Unreleased,
-              // even if applied manually elsewhere — no need to re-run the whole fetch.
-              const stillUnreleased = (scoringResults.unreleasedWithData || []).filter(({ film }) => scoring[film]?.released === false);
-              if (stillUnreleased.length === 0) return null;
-              return (
-                <div style={{ marginTop: 12, padding: "10px 12px", background: t.goldBg, border: `0.5px solid ${t.gold}`, borderRadius: 8 }}>
-                  <p style={{ fontSize: 12, fontWeight: 700, color: t.gold, marginBottom: 6 }}>
-                    🎬 Looks released ({stillUnreleased.length} film{stillUnreleased.length !== 1 ? "s" : ""})
-                  </p>
-                  <p style={{ fontSize: 11, color: t.textSub, marginBottom: 8, lineHeight: 1.5 }}>
-                    These films are toggled Unreleased, but box office and/or RT data was found for them. Review below — applying will switch the film to Released and save this data.
-                  </p>
+          </div>
+        )}
+      </Card>
+
+      {scoringResults && (() => {
+        // Live filter: drop any film the moment it's no longer marked Unreleased,
+        // even if applied manually elsewhere — no need to re-run the whole fetch.
+        const stillUnreleased = (scoringResults.unreleasedWithData || [])
+          .filter(({ film }) => scoring[film]?.released === false && !dismissedUnreleased.includes(film));
+        if (stillUnreleased.length === 0) return null;
+        return (
+          <>
+            <CollapsibleSL t={t} count={stillUnreleased.length} open={looksReleasedOpen} onToggle={() => setLooksReleasedOpen(o => !o)}>
+              🎬 looks released
+            </CollapsibleSL>
+            {looksReleasedOpen && (
+              <Card t={t} style={{ marginBottom: 24, background: t.goldBg, border: `0.5px solid ${t.gold}` }}>
+                <p style={{ fontSize: 11, color: t.textSub, marginBottom: 8, lineHeight: 1.5 }}>
+                  These films are toggled Unreleased, but box office and/or RT data was found for them from the last fetch. Review below — applying will switch the film to Released and save this data.
+                </p>
+                <div style={{ maxHeight: 320, overflowY: "auto" }}>
                   <ul style={{ paddingLeft: 0, margin: 0, listStyle: "none" }}>
                     {stillUnreleased.map(({ film, candidate }) => (
                       <li key={film} style={{ fontSize: 12, color: t.text, marginBottom: 6, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
@@ -181,56 +188,91 @@ export function CommissionerSettings({ leagueName, updateLeagueName, marxistMode
                           {candidate.boRaw != null && <span style={{ color: t.textMuted, marginLeft: 6 }}>· ${(candidate.boRaw / 1_000_000).toFixed(1)}m</span>}
                           {candidate.criticsRT && <span style={{ color: t.textMuted, marginLeft: 6 }}>· RT {candidate.criticsRT}</span>}
                         </span>
-                        <button
-                          onClick={() => applyUnreleasedData(film, candidate)}
-                          style={{ fontSize: 11, color: "#fff", background: t.gold, border: "none", borderRadius: 6, cursor: "pointer", padding: "4px 10px", fontWeight: 600, flexShrink: 0 }}
-                        >
-                          Mark released & apply
-                        </button>
+                        <span style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+                          <button
+                            onClick={() => applyUnreleasedData(film, candidate)}
+                            style={{ fontSize: 11, color: "#fff", background: t.gold, border: "none", borderRadius: 6, cursor: "pointer", padding: "4px 10px", fontWeight: 600 }}
+                          >
+                            Mark released & apply
+                          </button>
+                          <button
+                            onClick={() => remainUnreleased(film)}
+                            style={{ fontSize: 11, color: t.textSub, background: "none", border: `0.5px solid ${t.border}`, borderRadius: 6, cursor: "pointer", padding: "4px 10px", fontWeight: 600 }}
+                          >
+                            Remain unreleased
+                          </button>
+                        </span>
                       </li>
                     ))}
                   </ul>
                 </div>
-              );
-            })()}
-          </div>
-        )}
-      </Card>
+              </Card>
+            )}
+          </>
+        );
+      })()}
 
-      <SL t={t}>manage films · {movies.length}</SL>
-      <Card t={t} style={{ marginBottom: 24 }}>
-        <p style={{ fontSize: 12, color: t.textMuted, lineHeight: 1.5, marginBottom: 10 }}>
-          Remove films you added by mistake or under the wrong title (e.g. old/misnamed entries). This deletes the film and its data entirely — it will no longer be checked by Fetch scoring.
-        </p>
-        <input
-          value={filmFilter}
-          onChange={e => setFilmFilter(e.target.value)}
-          placeholder="Filter films…"
-          style={{ ...inp, width: "100%", boxSizing: "border-box", marginBottom: 10 }}
-        />
-        <div style={{ maxHeight: 320, overflowY: "auto", border: `0.5px solid ${t.border}`, borderRadius: 8 }}>
-          {filteredMovies.length === 0 && (
-            <div style={{ padding: "12px 14px", fontSize: 12, color: t.textMuted }}>No films match.</div>
-          )}
-          {filteredMovies.map((f, i) => {
-            const owner = findDraftOwner(f);
-            return (
-              <div key={f} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "9px 14px", borderBottom: i < filteredMovies.length - 1 ? `0.5px solid ${t.border}` : "none", background: i % 2 === 0 ? t.surface : t.rowAlt }}>
-                <span style={{ fontSize: 13, color: t.text, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {f}
-                  {owner && <span style={{ fontSize: 10, color: t.gold, marginLeft: 8, fontWeight: 600 }}>· drafted by {owner}</span>}
-                </span>
-                <button
-                  onClick={() => handleRemoveFilm(f)}
-                  style={{ fontSize: 11, color: t.red, background: "none", border: `0.5px solid ${t.red}`, borderRadius: 6, cursor: "pointer", padding: "3px 8px", flexShrink: 0 }}
-                >
-                  remove
-                </button>
+      {skippedFilms.length > 0 && (
+        <>
+          <CollapsibleSL t={t} count={skippedFilms.length} open={skippedOpen} onToggle={() => setSkippedOpen(o => !o)}>
+            skipped — no data
+          </CollapsibleSL>
+          {skippedOpen && (
+            <Card t={t} style={{ marginBottom: 24 }}>
+              <p style={{ fontSize: 11, color: t.textMuted, marginBottom: 8, lineHeight: 1.5 }}>
+                Films from the last fetch that came up empty, and why. Informational only — no action needed here.
+              </p>
+              <div style={{ maxHeight: 320, overflowY: "auto", border: `0.5px solid ${t.border}`, borderRadius: 8 }}>
+                {skippedFilms.map(({ film, reasons }, i) => (
+                  <div key={film} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "9px 14px", borderBottom: i < skippedFilms.length - 1 ? `0.5px solid ${t.border}` : "none", background: i % 2 === 0 ? t.surface : t.rowAlt }}>
+                    <span style={{ fontSize: 13, color: t.text, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{film}</span>
+                    <span style={{ fontSize: 10, color: t.textMuted, fontStyle: "italic", flexShrink: 0, textAlign: "right" }}>{reasons.join(" · ")}</span>
+                  </div>
+                ))}
               </div>
-            );
-          })}
-        </div>
-      </Card>
+            </Card>
+          )}
+        </>
+      )}
+
+      <CollapsibleSL t={t} count={movies.length} open={managedFilmsOpen} onToggle={() => setManagedFilmsOpen(o => !o)}>
+        manage films
+      </CollapsibleSL>
+      {managedFilmsOpen && (
+        <Card t={t} style={{ marginBottom: 24 }}>
+          <p style={{ fontSize: 12, color: t.textMuted, lineHeight: 1.5, marginBottom: 10 }}>
+            Remove films you added by mistake or under the wrong title (e.g. old/misnamed entries). This deletes the film and its data entirely — it will no longer be checked by Fetch scoring.
+          </p>
+          <input
+            value={filmFilter}
+            onChange={e => setFilmFilter(e.target.value)}
+            placeholder="Filter films…"
+            style={{ ...inp, width: "100%", boxSizing: "border-box", marginBottom: 10 }}
+          />
+          <div style={{ maxHeight: 320, overflowY: "auto", border: `0.5px solid ${t.border}`, borderRadius: 8 }}>
+            {filteredMovies.length === 0 && (
+              <div style={{ padding: "12px 14px", fontSize: 12, color: t.textMuted }}>No films match.</div>
+            )}
+            {filteredMovies.map((f, i) => {
+              const owner = findDraftOwner(f);
+              return (
+                <div key={f} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "9px 14px", borderBottom: i < filteredMovies.length - 1 ? `0.5px solid ${t.border}` : "none", background: i % 2 === 0 ? t.surface : t.rowAlt }}>
+                  <span style={{ fontSize: 13, color: t.text, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {f}
+                    {owner && <span style={{ fontSize: 10, color: t.gold, marginLeft: 8, fontWeight: 600 }}>· drafted by {owner}</span>}
+                  </span>
+                  <button
+                    onClick={() => handleRemoveFilm(f)}
+                    style={{ fontSize: 11, color: t.red, background: "none", border: `0.5px solid ${t.red}`, borderRadius: 6, cursor: "pointer", padding: "3px 8px", flexShrink: 0 }}
+                  >
+                    remove
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
 
       <SL t={t}>marxist mode</SL>
       <Card t={t} style={{ marginBottom: 24 }}>

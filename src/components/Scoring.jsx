@@ -17,6 +17,7 @@ export function Scoring({ scoring, movies, canEdit, isCommissioner, requireAuth,
   const [filmSearch, setFilmSearch] = useState(film || "");
   const [filmSearchOpen, setFilmSearchOpen] = useState(false);
   useEffect(() => { if (scoringFilm) { setFilm(scoringFilm); setFilmSearch(scoringFilm); } }, [scoringFilm]);
+  useEffect(() => { window.scrollTo(0, 0); }, [film]);
 
   const fs = scoring[film] || {};
   const total = calcFilmScore(film, scoring);

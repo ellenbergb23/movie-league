@@ -1,6 +1,20 @@
 export function SL({ children, t }) {
   return <p style={{ fontSize: 11, fontWeight: 600, color: t.textMuted, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 14 }}>{children}</p>;
 }
+
+// Collapsible section label — click to expand/collapse, shows a count badge next to the title.
+export function CollapsibleSL({ children, count, open, onToggle, t }) {
+  return (
+    <button
+      onClick={onToggle}
+      style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, background: "none", border: "none", padding: 0, cursor: "pointer" }}
+    >
+      <span style={{ fontSize: 11, fontWeight: 600, color: t.textMuted, letterSpacing: "0.1em", textTransform: "uppercase" }}>{children}</span>
+      <span style={{ fontSize: 10, fontWeight: 700, color: t.textMuted, background: t.surface2, border: `0.5px solid ${t.border}`, borderRadius: 10, padding: "1px 7px" }}>{count}</span>
+      <span style={{ fontSize: 10, color: t.textMuted, transform: open ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.15s" }}>▶</span>
+    </button>
+  );
+}
 export function Card({ children, t, style = {} }) {
   return <div style={{ background: t.surface, border: `0.5px solid ${t.border}`, borderRadius: 10, padding: "14px 16px", ...style }}>{children}</div>;
 }

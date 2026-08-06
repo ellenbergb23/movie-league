@@ -2,7 +2,11 @@ import { useState, useEffect } from "react";
 import { supabase, LEAGUE_ID, COMMISSIONER_EMAIL } from "./lib/supabase";
 import { DEFAULT_PLAYERS, THEMES } from "./lib/constants";
 import { calcFilmScore } from "./lib/scoring";
+<<<<<<< Updated upstream
 import { searchTMDB, getTMDBBoxOffice } from "./lib/tmdb";
+=======
+import { searchTMDB, getTMDBBoxOffice, getTMDBWideReleaseDate } from "./lib/tmdb";
+>>>>>>> Stashed changes
 import { getOMDbData, extractRTScores } from "./lib/omdb";
 import { revenueToBoxOfficeTier, isValidRevenue } from "./lib/scoring-utils";
 import {

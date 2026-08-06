@@ -111,8 +111,36 @@ export function CommissionerSettings({ leagueName, updateLeagueName, marxistMode
         </label>
         {scoringResults && (
           <div style={{ marginTop: 14, paddingTop: 14, borderTop: `0.5px solid ${t.border}` }}>
-            <p style={{ fontSize: 12, fontWeight: 600, color: t.text, marginBottom: 8 }}>Box Office: {scoringResults.boUpdated} added · {scoringResults.boSkipped} skipped</p>
+            <p style={{ fontSize: 12, fontWeight: 600, color: t.text, marginBottom: 6 }}>Box Office: {scoringResults.boUpdated} added · {scoringResults.boSkipped} skipped</p>
             <p style={{ fontSize: 12, fontWeight: 600, color: t.text }}>Rotten Tomatoes: {scoringResults.rtUpdated} added · {scoringResults.rtSkipped} skipped</p>
+            {(() => {
+              const tooEarlySet = new Set([...(scoringResults.boTooEarly || []), ...(scoringResults.rtTooEarly || [])]);
+              const tooEarlyFilms = [...tooEarlySet];
+              if (tooEarlyFilms.length === 0) return null;
+              return (
+                <div style={{ marginTop: 12, padding: "10px 12px", background: "#1A0A00", border: "0.5px solid #E65100", borderRadius: 8 }}>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: "#FF8A65", marginBottom: 6 }}>
+                    ⏳ Skipped — too early ({tooEarlyFilms.length} film{tooEarlyFilms.length !== 1 ? "s" : ""})
+                  </p>
+                  <p style={{ fontSize: 11, color: "#FFCCBC", marginBottom: 8, lineHeight: 1.5 }}>
+                    These films had limited/preview data below the threshold. Run fetch again once they have a wide US release.
+                  </p>
+                  <ul style={{ paddingLeft: 16, margin: 0 }}>
+                    {tooEarlyFilms.map(f => {
+                      const boFlag = scoringResults.boTooEarly?.includes(f);
+                      const rtFlag = scoringResults.rtTooEarly?.includes(f);
+                      const reason = boFlag && rtFlag ? "BO + RT" : boFlag ? "Box office" : "RT scores";
+                      return (
+                        <li key={f} style={{ fontSize: 11, color: "#FFCCBC", marginBottom: 4, display: "flex", justifyContent: "space-between", alignItems: "center", maxWidth: 460 }}>
+                          <span>{f}</span>
+                          <span style={{ fontSize: 10, color: "#FF8A65", fontStyle: "italic", marginLeft: 8 }}>{reason} skipped</span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              );
+            })()}
           </div>
         )}
       </Card>

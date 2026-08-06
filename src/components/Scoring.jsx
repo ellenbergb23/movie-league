@@ -85,25 +85,90 @@ export function Scoring({ scoring, movies, canEdit, isCommissioner, requireAuth,
       </Card>}
 
       <Card t={t} style={{ marginBottom: 10, background: t.surface2 }}>
-        <span style={lbl}>Stats</span>
+        <span style={lbl}>Stats {isCommissioner && <span style={{ fontSize: 9, color: t.textMuted, fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>— enter raw values to auto-set scoring below</span>}</span>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
           <div style={{ textAlign: "center", padding: "8px", borderRadius: 6, background: t.surface, border: `0.5px solid ${t.border}` }}>
-            <div style={{ fontSize: 11, color: t.textMuted, marginBottom: 4 }}>Box Office</div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: fs.boRaw ? t.text : t.textMuted, fontFamily: "monospace" }}>
-              {fs.boRaw ? formatRevenue(fs.boRaw) : fs.bo ? fs.bo : "—"}
-            </div>
+            <div style={{ fontSize: 11, color: t.textMuted, marginBottom: 4 }}>Box Office ($m)</div>
+            {isCommissioner ? (
+              <input
+                type="number"
+                placeholder="e.g. 117"
+                defaultValue={fs.boRaw ? Math.round(fs.boRaw / 1_000_000) : ""}
+                key={film + "-bo"}
+                onBlur={e => {
+                  const millions = parseFloat(e.target.value);
+                  if (isNaN(millions) || millions <= 0) return;
+                  const revenue = Math.round(millions * 1_000_000);
+                  // derive tier from BO_TIERS directly
+                  const billions = millions / 1000;
+                  const sorted = [...BO_TIERS].sort((a, b) => {
+                    const parse = l => { const m = l.match(/[\d.]+/); if (!m) return 0; const v = parseFloat(m[0]); return l.includes("bn") ? v : l.includes("m") ? v/1000 : v; };
+                    return parse(b.label) - parse(a.label);
+                  });
+                  const tier = sorted.find(t2 => {
+                    const m2 = t2.label.match(/[\d.]+/); if (!m2) return false;
+                    const v = parseFloat(m2[0]);
+                    const tierBn = t2.label.includes("bn") ? v : t2.label.includes("m") ? v/1000 : v;
+                    return billions >= tierBn;
+                  });
+                  updateScoring(film, "boRaw", revenue);
+                  if (tier) updateScoring(film, "bo", tier.label);
+                }}
+                style={{ width: "100%", fontSize: 14, fontWeight: 700, fontFamily: "monospace", textAlign: "center", background: "transparent", border: "none", borderBottom: `1px solid ${t.border}`, color: t.text, outline: "none", padding: "2px 0" }}
+              />
+            ) : (
+              <div style={{ fontSize: 15, fontWeight: 700, color: fs.boRaw ? t.text : t.textMuted, fontFamily: "monospace" }}>
+                {fs.boRaw ? formatRevenue(fs.boRaw) : fs.bo ? fs.bo : "—"}
+              </div>
+            )}
           </div>
           <div style={{ textAlign: "center", padding: "8px", borderRadius: 6, background: t.surface, border: `0.5px solid ${t.border}` }}>
-            <div style={{ fontSize: 11, color: t.textMuted, marginBottom: 4 }}>RT Critics</div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: fs.criticsRTRaw != null ? t.text : t.textMuted, fontFamily: "monospace" }}>
-              {fs.criticsRTRaw != null ? `${fs.criticsRTRaw}%` : "—"}
-            </div>
+            <div style={{ fontSize: 11, color: t.textMuted, marginBottom: 4 }}>RT Critics %</div>
+            {isCommissioner ? (
+              <input
+                type="number"
+                min="0" max="100"
+                placeholder="e.g. 87"
+                defaultValue={fs.criticsRTRaw != null ? fs.criticsRTRaw : ""}
+                key={film + "-critics"}
+                onBlur={e => {
+                  const score = parseInt(e.target.value);
+                  if (isNaN(score)) return;
+                  const tier = score >= 90 ? "90%+ (7pts)" : score >= 60 ? "Fresh 60-89% (2pts)" : "Rotten (0pts)";
+                  updateScoring(film, "criticsRTRaw", score);
+                  updateScoring(film, "criticsRT", tier);
+                }}
+                style={{ width: "100%", fontSize: 14, fontWeight: 700, fontFamily: "monospace", textAlign: "center", background: "transparent", border: "none", borderBottom: `1px solid ${t.border}`, color: t.text, outline: "none", padding: "2px 0" }}
+              />
+            ) : (
+              <div style={{ fontSize: 15, fontWeight: 700, color: fs.criticsRTRaw != null ? t.text : t.textMuted, fontFamily: "monospace" }}>
+                {fs.criticsRTRaw != null ? `${fs.criticsRTRaw}%` : "—"}
+              </div>
+            )}
           </div>
           <div style={{ textAlign: "center", padding: "8px", borderRadius: 6, background: t.surface, border: `0.5px solid ${t.border}` }}>
-            <div style={{ fontSize: 11, color: t.textMuted, marginBottom: 4 }}>RT Audience</div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: fs.audienceRTRaw != null ? t.text : t.textMuted, fontFamily: "monospace" }}>
-              {fs.audienceRTRaw != null ? `${fs.audienceRTRaw}%` : "—"}
-            </div>
+            <div style={{ fontSize: 11, color: t.textMuted, marginBottom: 4 }}>RT Audience %</div>
+            {isCommissioner ? (
+              <input
+                type="number"
+                min="0" max="100"
+                placeholder="e.g. 74"
+                defaultValue={fs.audienceRTRaw != null ? fs.audienceRTRaw : ""}
+                key={film + "-audience"}
+                onBlur={e => {
+                  const score = parseInt(e.target.value);
+                  if (isNaN(score)) return;
+                  const tier = score >= 90 ? "90%+ (5pts)" : "Below 90% (0pts)";
+                  updateScoring(film, "audienceRTRaw", score);
+                  updateScoring(film, "audienceRT", tier);
+                }}
+                style={{ width: "100%", fontSize: 14, fontWeight: 700, fontFamily: "monospace", textAlign: "center", background: "transparent", border: "none", borderBottom: `1px solid ${t.border}`, color: t.text, outline: "none", padding: "2px 0" }}
+              />
+            ) : (
+              <div style={{ fontSize: 15, fontWeight: 700, color: fs.audienceRTRaw != null ? t.text : t.textMuted, fontFamily: "monospace" }}>
+                {fs.audienceRTRaw != null ? `${fs.audienceRTRaw}%` : "—"}
+              </div>
+            )}
           </div>
         </div>
       </Card>

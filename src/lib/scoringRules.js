@@ -1,22 +1,11 @@
 import { OSCAR_CATEGORIES } from "./constants";
 
-// The legacy BO_TIERS curve had milestone bonuses baked invisibly into the tier
-// values themselves (e.g. the jump from $400m→$500m is +4 instead of the usual +2 —
-// that extra +2 was really a "$500m bonus"). These are the same tiers with those
-// baked-in bonuses subtracted back out, so tier pts + milestone bonus pts below
-// reproduces the exact same totals as before, just as two separate editable pieces.
-const DEFAULT_BO_TIERS = [
-  { millions: 100, pts: 2 }, { millions: 200, pts: 4 }, { millions: 300, pts: 6 },
-  { millions: 400, pts: 8 }, { millions: 500, pts: 10 }, { millions: 600, pts: 12 },
-  { millions: 700, pts: 14 }, { millions: 800, pts: 16 }, { millions: 900, pts: 18 },
-  { millions: 1000, pts: 20 }, { millions: 1100, pts: 22 }, { millions: 1200, pts: 24 },
-  { millions: 1300, pts: 26 }, { millions: 1400, pts: 28 }, { millions: 1500, pts: 30 },
-  { millions: 1600, pts: 30 }, { millions: 1700, pts: 31 }, { millions: 1800, pts: 32 },
-  { millions: 1900, pts: 34 }, { millions: 2000, pts: 38 }, { millions: 2100, pts: 38 },
-  { millions: 2200, pts: 40 }, { millions: 2300, pts: 42 }, { millions: 2400, pts: 44 },
-  { millions: 2500, pts: 48 }, { millions: 2600, pts: 50 }, { millions: 2700, pts: 54 },
-  { millions: 2800, pts: 58 }, { millions: 2900, pts: 62 }, { millions: 3000, pts: 68 },
-];
+// Clean, consistent progression: +2 pts per $100m breakpoint, no baked-in bonuses.
+// Milestone bonuses (below) are a separate, additive layer on top of this.
+const DEFAULT_BO_TIERS = Array.from({ length: 30 }, (_, i) => ({
+  millions: (i + 1) * 100,
+  pts: (i + 1) * 2,
+}));
 
 export const LEAGUE_MODES = [
   { id: "classic", label: "Classic" },
@@ -32,11 +21,10 @@ export function defaultScoringRules() {
     boTiers: DEFAULT_BO_TIERS.map(t => ({ ...t })),
     boBonuses: {
       enabled: true,
-      milestones: [
-        { millions: 500, pts: 2 },
-        { millions: 1000, pts: 2 },
-        { millions: 1500, pts: 2 },
-      ],
+      milestones: Array.from({ length: 6 }, (_, i) => ({
+        millions: (i + 1) * 500,
+        pts: 2,
+      })),
     },
     openingWeekendBonus: { enabled: true, pts: 1 },
     weeksNumber1Bonus: { enabled: true, pts: 1 },

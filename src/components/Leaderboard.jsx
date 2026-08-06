@@ -14,8 +14,8 @@ export function Leaderboard({ rankedPlayers, getPlayerTotal, draft, scoring, t, 
           const pct = Math.round((pts / maxPts) * 100);
           const color = PLAYER_COLORS[DEFAULT_PLAYERS.indexOf(player) % PLAYER_COLORS.length];
           const { noms, wins } = getPlayerOscarTotals(player, draft, scoring, rules);
-          const irFilm = irSlots?.[player] || null;
-          const { released, unreleased, onIR, avgScore } = getPlayerReleaseStats(player, draft, scoring, irFilm, rules);
+          const irFilms = irSlots?.[player] || [];
+          const { released, unreleased, onIR, avgScore } = getPlayerReleaseStats(player, draft, scoring, irFilms, rules);
           return (
             <Card key={player} t={t}>
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>

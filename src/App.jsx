@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase, LEAGUE_ID, COMMISSIONER_EMAIL } from "./lib/supabase";
-import { DEFAULT_PLAYERS, THEMES } from "./lib/constants";
+import { DEFAULT_PLAYERS, THEMES, DEFAULT_IR_CONFIG } from "./lib/constants";
 import { calcFilmScore } from "./lib/scoring";
 import { searchTMDB, getTMDBBoxOffice, getTMDBWideReleaseDate } from "./lib/tmdb";
 import { getOMDbData, extractRTScores } from "./lib/omdb";
@@ -10,6 +10,7 @@ import {
   dbGetDraft, dbSetDraftPick, dbGetScores, dbSetScore, dbGetMovies, dbAddMovie,
   dbDeleteMovie, dbRenameMovie, dbRenamePlayer, dbGetLeagueUsers, dbAssignPlayer, dbGetCurrentUser,
   dbGetIR, dbSetIR, dbGetReplacements, dbSetReplacements,
+  dbGetIRConfig, dbSetIRConfig,
   dbGetScoringRules, dbSetScoringRules,
 } from "./lib/db";
 import { defaultScoringRules } from "./lib/scoringRules";
@@ -21,6 +22,16 @@ import { Scoring } from "./components/Scoring";
 import { Settings } from "./components/Settings";
 import { CommissionerSettings } from "./components/CommissionerSettings";
 import { LeagueManagement } from "./components/LeagueManagement";
+
+// Pre-multi-slot data stored one film string per player (e.g. { "Ryan Williams": "Some Film" }).
+// Coerce any legacy string values into single-item arrays so old league data keeps working.
+function normalizeIRMap(map) {
+  const out = {};
+  Object.entries(map || {}).forEach(([player, val]) => {
+    out[player] = Array.isArray(val) ? val : (val ? [val] : []);
+  });
+  return out;
+}
 
 export default function App() {
   const [authUser, setAuthUser] = useState(null);
@@ -41,8 +52,9 @@ export default function App() {
   const [scoringFilm, setScoringFilm] = useState(null);
   const [draftFocusPlayer, setDraftFocusPlayer] = useState(null);
   const [toast, setToast] = useState(null);
-  const [irSlots, setIrSlots] = useState({}); // { playerName: filmTitle }
-  const [replacements, setReplacements] = useState({}); // { playerName: filmTitle } — permanent, set once when a slot freed by IR is filled
+  const [irSlots, setIrSlots] = useState({}); // { playerName: [filmTitle, ...] } — up to irConfig.maxSlots per player
+  const [replacements, setReplacements] = useState({}); // { playerName: [filmTitle, ...] } — permanent, appended each time a slot freed by IR is filled
+  const [irConfig, setIrConfig] = useState(() => ({ ...DEFAULT_IR_CONFIG })); // { enabled, maxSlots }
   const [scoringRules, setScoringRules] = useState(() => defaultScoringRules());
   const [lmDirty, setLmDirty] = useState(false); // true while League Management has unapplied edits
 
@@ -75,8 +87,8 @@ export default function App() {
   useEffect(() => {
     async function load() {
       setDataLoading(true);
-      const [name, loadedPlayers, movieData, scoreData, usersData, openScoring, irData, replacementsData, rulesData] = await Promise.all([
-        dbGetLeagueName(), dbGetPlayers(), dbGetMovies(), dbGetScores(), dbGetLeagueUsers(), dbGetOpenScoringMode(), dbGetIR(), dbGetReplacements(), dbGetScoringRules()
+      const [name, loadedPlayers, movieData, scoreData, usersData, openScoring, irData, replacementsData, irConfigData, rulesData] = await Promise.all([
+        dbGetLeagueName(), dbGetPlayers(), dbGetMovies(), dbGetScores(), dbGetLeagueUsers(), dbGetOpenScoringMode(), dbGetIR(), dbGetReplacements(), dbGetIRConfig(), dbGetScoringRules()
       ]);
       setLeagueName(name);
       setPlayers(loadedPlayers);
@@ -84,8 +96,9 @@ export default function App() {
       setScoring(scoreData);
       setLeagueUsers(usersData);
       setOpenScoringMode(openScoring);
-      setIrSlots(irData);
-      setReplacements(replacementsData);
+      setIrSlots(normalizeIRMap(irData));
+      setReplacements(normalizeIRMap(replacementsData));
+      setIrConfig(irConfigData);
       setScoringRules(rulesData);
       const draftData = await dbGetDraft(loadedPlayers);
       setDraft(draftData);
@@ -100,8 +113,9 @@ export default function App() {
       setLeagueName(await dbGetLeagueName());
       const p = await dbGetPlayers(); setPlayers(p);
       setOpenScoringMode(await dbGetOpenScoringMode());
-      setIrSlots(await dbGetIR());
-      setReplacements(await dbGetReplacements());
+      setIrSlots(normalizeIRMap(await dbGetIR()));
+      setReplacements(normalizeIRMap(await dbGetReplacements()));
+      setIrConfig(await dbGetIRConfig());
       setScoringRules(await dbGetScoringRules());
     }).subscribe();
     const usersSub = supabase.channel("us").on("postgres_changes", { event: "*", schema: "public", table: "users", filter: `league_id=eq.${LEAGUE_ID}` }, async () => {
@@ -195,9 +209,10 @@ export default function App() {
     // If this round slot currently holds the player's IR'd film, filling it with a new film
     // permanently tags that new film as a replacement pick (one IR per team, so this only ever fires once).
     const priorFilm = (draft[player] || [])[roundIdx];
-    const irFilm = irSlots[player] || null;
-    if (film && irFilm && priorFilm === irFilm && !replacements[player]) {
-      const updatedReplacements = { ...replacements, [player]: film };
+    const irFilms = irSlots[player] || [];
+    const existingReplacements = replacements[player] || [];
+    if (film && irFilms.includes(priorFilm) && !existingReplacements.includes(film)) {
+      const updatedReplacements = { ...replacements, [player]: [...existingReplacements, film] };
       setReplacements(updatedReplacements);
       await dbSetReplacements(updatedReplacements);
     }
@@ -557,25 +572,43 @@ export default function App() {
   const scoringWithMeta = { ...scoring, ...(scoring["_meta"] || {}) };
 
   async function placeOnIR(player, film) {
-    const updated = { ...irSlots, [player]: film };
+    const current = irSlots[player] || [];
+    if (current.length >= irConfig.maxSlots) {
+      showToast(`IR is limited to ${irConfig.maxSlots} slot${irConfig.maxSlots !== 1 ? "s" : ""} per team`);
+      return;
+    }
+    const updated = { ...irSlots, [player]: [...current, film] };
     setIrSlots(updated);
     await dbSetIR(updated);
     showToast(`${film} placed on IR`);
   }
 
-  async function removeFromIR(player) {
-    const updated = { ...irSlots };
-    delete updated[player];
+  async function removeFromIR(player, film) {
+    const updated = { ...irSlots, [player]: (irSlots[player] || []).filter(f => f !== film) };
     setIrSlots(updated);
     await dbSetIR(updated);
     showToast("Removed from IR");
   }
 
+  async function updateIRConfig(newConfig) {
+    // Trim any teams' IR lists that now exceed a lowered maxSlots (rare — commissioner-only action).
+    let trimmedIrSlots = irSlots;
+    if (newConfig.maxSlots < irConfig.maxSlots) {
+      trimmedIrSlots = {};
+      Object.entries(irSlots).forEach(([player, films]) => { trimmedIrSlots[player] = films.slice(0, newConfig.maxSlots); });
+      setIrSlots(trimmedIrSlots);
+      await dbSetIR(trimmedIrSlots);
+    }
+    setIrConfig(newConfig);
+    await dbSetIRConfig(newConfig);
+    showToast("IR settings updated");
+  }
+
   function getPlayerTotal(player) {
-    const irFilm = irSlots[player];
+    const irFilms = irSlots[player] || [];
     return (draft[player] || []).reduce((sum, film) => {
       if (!film) return sum;
-      if (film === irFilm) return sum; // IR film scores 0
+      if (irFilms.includes(film)) return sum; // IR films score 0
       return sum + calcFilmScore(film, scoringWithMeta, scoringRules);
     }, 0);
   }
@@ -631,11 +664,11 @@ export default function App() {
 
       <main style={{ maxWidth: 880, margin: "0 auto", padding: "1.5rem" }}>
         {tab === "leaderboard"  && <Leaderboard rankedPlayers={rankedPlayers} getPlayerTotal={getPlayerTotal} draft={draft} scoring={scoringWithMeta} t={t} goToPlayerDraft={goToPlayerDraft} irSlots={irSlots} rules={scoringRules} />}
-        {tab === "draft board"  && <DraftBoard draft={draft} players={players} movies={movies} canEdit={canEdit} isCommissioner={isCommissioner} openScoringMode={openScoringMode} updateDraftPick={updateDraftPick} requireAuth={requireAuth} scoring={scoringWithMeta} goToFilmScoring={goToFilmScoring} t={t} focusPlayer={draftFocusPlayer} addMovie={addMovie} irSlots={irSlots} placeOnIR={placeOnIR} removeFromIR={removeFromIR} replacements={replacements} rules={scoringRules} />}
+        {tab === "draft board"  && <DraftBoard draft={draft} players={players} movies={movies} canEdit={canEdit} isCommissioner={isCommissioner} openScoringMode={openScoringMode} updateDraftPick={updateDraftPick} requireAuth={requireAuth} scoring={scoringWithMeta} goToFilmScoring={goToFilmScoring} t={t} focusPlayer={draftFocusPlayer} addMovie={addMovie} irSlots={irSlots} placeOnIR={placeOnIR} removeFromIR={removeFromIR} replacements={replacements} rules={scoringRules} irConfig={irConfig} />}
         {tab === "scoring"      && <Scoring scoring={scoringWithMeta} movies={movies} canEdit={canEdit} isCommissioner={isCommissioner} requireAuth={requireAuth} updateScoring={updateScoring} updateScoringMulti={updateScoringMulti} updateScoringRoot={updateScoringRoot} updateOscarField={updateOscarField} updateMovieName={updateMovieName} scoringFilm={scoringFilm} setScoringFilm={setScoringFilm} showToast={showToast} fetchFilmScoring={fetchFilmScoring} t={t} rules={scoringRules} />}
         {tab === "settings"     && <Settings movies={movies} players={players} canEdit={canEdit} myPlayerName={myPlayerName} openScoringMode={openScoringMode} updateMovieName={updateMovieName} addMovie={addMovie} renamePlayer={renamePlayer} t={t} showToast={showToast} requireAuth={requireAuth} isCommissioner={isCommissioner} searchTMDB={searchTMDB} scoring={scoringWithMeta} />}
         {tab === "commissioner" && isCommissioner && <CommissionerSettings leagueName={leagueName} updateLeagueName={updateLeagueName} openScoringMode={openScoringMode} toggleOpenScoringMode={toggleOpenScoringMode} leagueUsers={leagueUsers} players={players} assignPlayer={assignPlayer} t={t} showToast={showToast} movies={movies} backfillPosters={backfillPosters} backfillScoring={backfillScoring} scoring={scoringWithMeta} deleteMovie={deleteMovie} draft={draft} applyUnreleasedData={applyUnreleasedData} />}
-        {tab === "league management" && isCommissioner && <LeagueManagement rules={scoringRules} updateScoringRules={updateScoringRules} onDirtyChange={setLmDirty} t={t} showToast={showToast} />}
+        {tab === "league management" && isCommissioner && <LeagueManagement rules={scoringRules} updateScoringRules={updateScoringRules} onDirtyChange={setLmDirty} t={t} showToast={showToast} irConfig={irConfig} updateIRConfig={updateIRConfig} />}
       </main>
     </div>
   );

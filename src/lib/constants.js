@@ -4,6 +4,9 @@ export const YEARS  = ["2023","2024","2025","2026"];
 export const PLAYER_COLORS = ["#4A90D9","#A855F7","#22C55E","#F97316","#94A3B8","#EC4899","#EF4444","#14B8A6"];
 export const GOLD = "#C9A84C";
 
+// Default IR configuration — matches pre-existing hardcoded behavior (IR on, 1 slot).
+export const DEFAULT_IR_CONFIG = { enabled: true, maxSlots: 1 };
+
 export const OSCAR_CATEGORIES = [
   { name: "Best Picture", nomPts: 10, winPts: 10 },
   { name: "Best Director", nomPts: 3, winPts: 5 },

@@ -4,7 +4,7 @@ import { calcFilmScore, getFilmOscarStatus, isFilmReleased } from "../lib/scorin
 import { searchTMDB } from "../lib/tmdb";
 import { SL, Card, Poster } from "./ui";
 
-export function DraftBoard({ draft, players, movies, canEdit, isCommissioner, openScoringMode, updateDraftPick, requireAuth, scoring, goToFilmScoring, t, focusPlayer, addMovie, irSlots, placeOnIR, removeFromIR, replacements, rules }) {
+export function DraftBoard({ draft, players, movies, canEdit, isCommissioner, openScoringMode, updateDraftPick, requireAuth, scoring, goToFilmScoring, t, focusPlayer, addMovie, irSlots, placeOnIR, removeFromIR, replacements, rules, irConfig }) {
   const sel = { width: "100%", fontSize: 11, padding: "4px 6px", borderRadius: 6, border: `0.5px solid ${t.border}`, background: t.selectBg, color: t.text, cursor: "pointer" };
   const [editingSlot, setEditingSlot] = useState(null);
   const [swapQuery, setSwapQuery] = useState("");
@@ -108,10 +108,10 @@ export function DraftBoard({ draft, players, movies, canEdit, isCommissioner, op
       {players.map((player, pi) => {
         const color = PLAYER_COLORS[pi % PLAYER_COLORS.length];
         const picks = draft[player] || Array(9).fill("");
-        const irFilm = irSlots?.[player] || null;
-        const replacementFilm = replacements?.[player] || null;
+        const irFilms = irSlots?.[player] || [];
+        const replacementFilms = replacements?.[player] || [];
         const total = picks.reduce((s, f) => {
-          if (!f || f === irFilm) return s;
+          if (!f || irFilms.includes(f)) return s;
           return s + calcFilmScore(f, scoring, rules);
         }, 0);
         const isFocused = focusPlayer === player;
@@ -127,7 +127,7 @@ export function DraftBoard({ draft, players, movies, canEdit, isCommissioner, op
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(100px, 1fr))", gap: 8 }}>
               {picks.map((film, ri) => {
                 const round = ["1","2","3","4","5","6","7","S1","S2"][ri];
-                const isOnIR = film && film === irFilm;
+                const isOnIR = film && irFilms.includes(film);
                 const score = film && !isOnIR ? calcFilmScore(film, scoring, rules) : null;
                 const status = film && !isOnIR ? getFilmOscarStatus(film, scoring, rules) : {};
                 const { nominated, winner } = status;
@@ -153,7 +153,7 @@ export function DraftBoard({ draft, players, movies, canEdit, isCommissioner, op
                       </div>
                       {displayFilm ? (
                         <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "center" }}>
-                          <Poster film={displayFilm} scoring={scoring} size="small" t={t} badge={displayFilm === replacementFilm ? "REPLACEMENT" : null} />
+                          <Poster film={displayFilm} scoring={scoring} size="small" t={t} />
                           {score !== null && (
                             <div style={{ width: "100%", textAlign: "center" }}>
                               {isFilmReleased(displayFilm, scoring) ? (
@@ -166,6 +166,12 @@ export function DraftBoard({ draft, players, movies, canEdit, isCommissioner, op
                         </div>
                       ) : (
                         <div style={{ width: 60, height: 104, margin: "0 auto", background: t.surface, border: `1px dashed ${t.border}`, borderRadius: 4 }} />
+                      )}
+                      {/* Fixed to the bottom of the card, below the score/Unreleased line either way — never overlaps the poster or gets clipped */}
+                      {displayFilm && replacementFilms.includes(displayFilm) && (
+                        <span style={{ position: "absolute", bottom: 6, left: 6, right: 6, fontSize: 8, color: "#fff", fontWeight: 700, textAlign: "center", letterSpacing: "0.03em", background: `${t.gold}dd`, borderRadius: 3, padding: "2px 3px", lineHeight: 1.2 }}>
+                          REPLACEMENT
+                        </span>
                       )}
                     </div>
 
@@ -180,7 +186,7 @@ export function DraftBoard({ draft, players, movies, canEdit, isCommissioner, op
                           >
                             {isEmpty ? "add film" : "swap"}
                           </button>
-                          {isCommissioner && displayFilm && !irFilm && (
+                          {isCommissioner && irConfig?.enabled && displayFilm && irFilms.length < irConfig.maxSlots && (
                             <button onClick={() => setConfirmIR({ player, film: displayFilm })} style={{ fontSize: 9, color: "#fff", background: "#B71C1C", border: "none", borderRadius: 4, cursor: "pointer", padding: "2px 6px", fontWeight: 700 }}>IR</button>
                           )}
                         </div>
@@ -205,9 +211,9 @@ export function DraftBoard({ draft, players, movies, canEdit, isCommissioner, op
                 );
               })}
 
-              {/* IR box — last item in the grid, flows naturally after S1 and S2 */}
-              {irFilm && (
-                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              {/* IR box(es) — last items in the grid, flow naturally after S1 and S2. One box per IR'd film. */}
+              {irFilms.map(irFilm => (
+                <div key={irFilm} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                   <div style={{ position: "relative", background: "#1A0505", border: "1.5px solid #B71C1C", borderRadius: 8, padding: "8px", height: 230, overflow: "hidden" }}>
                     <div style={{ fontSize: 9, color: "#B71C1C", marginBottom: 4, fontWeight: 700, letterSpacing: "0.06em" }}>IR</div>
                     <div style={{ fontSize: 10, color: "#EF5350", fontWeight: 600, marginBottom: 4, textAlign: "center", lineHeight: 1.2, height: 36, display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
@@ -219,14 +225,14 @@ export function DraftBoard({ draft, players, movies, canEdit, isCommissioner, op
                   </div>
                   {isCommissioner && (
                     <button
-                      onClick={() => { if (window.confirm(`Remove ${irFilm} from IR for ${player}?`)) removeFromIR(player); }}
+                      onClick={() => { if (window.confirm(`Remove ${irFilm} from IR for ${player}?`)) removeFromIR(player, irFilm); }}
                       style={{ fontSize: 9, color: "#B71C1C", background: "none", border: `0.5px solid #B71C1C`, borderRadius: 4, cursor: "pointer", padding: "2px 6px", fontWeight: 600 }}
                     >
                       remove IR
                     </button>
                   )}
                 </div>
-              )}
+              ))}
             </div>
           </Card>
         );

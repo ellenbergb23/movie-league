@@ -1,5 +1,5 @@
 import { supabase, LEAGUE_ID } from "./supabase";
-import { DEFAULT_PLAYERS } from "./constants";
+import { DEFAULT_PLAYERS, DEFAULT_IR_CONFIG } from "./constants";
 import { normalizeRules, defaultScoringRules } from "./scoringRules";
 
 export async function dbGet(key) {
@@ -89,4 +89,11 @@ export async function dbGetReplacements() {
 }
 export async function dbSetReplacements(replacements) {
   await dbSet("ir_replacements", JSON.stringify(replacements));
+}
+export async function dbGetIRConfig() {
+  const v = await dbGet("ir_config");
+  return v ? { ...DEFAULT_IR_CONFIG, ...JSON.parse(v) } : { ...DEFAULT_IR_CONFIG };
+}
+export async function dbSetIRConfig(config) {
+  await dbSet("ir_config", JSON.stringify(config));
 }

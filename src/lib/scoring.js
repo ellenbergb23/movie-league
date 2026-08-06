@@ -66,11 +66,15 @@ export function getPlayerOscarTotals(player, draft, scoring, rules = DEFAULT_SCO
   return { noms, wins };
 }
 
-export function getPlayerReleaseStats(player, draft, scoring, irFilm = null, rules = DEFAULT_SCORING_RULES) {
+export function getPlayerReleaseStats(player, draft, scoring, irFilms = [], rules = DEFAULT_SCORING_RULES) {
   const films = (draft[player] || []).filter(Boolean);
-  let released = 0, unreleased = 0, releasedTotal = 0, onIR = 0;
+  let released = 0, unreleased = 0, releasedTotal = 0;
+  // onIR is derived directly from the IR list, not by scanning picks — once a replacement
+  // fills the freed slot, the original IR'd film no longer appears in `draft[player]` at all,
+  // so counting it via a picks-array match would silently drop it. This mirrors the fix.
+  const onIR = irFilms.length;
   films.forEach(film => {
-    if (film === irFilm) { onIR++; return; }
+    if (irFilms.includes(film)) return; // still occupying its slot (no replacement drafted yet) — don't double count
     if (isFilmReleased(film, scoring)) {
       released++;
       releasedTotal += calcFilmScore(film, scoring, rules);

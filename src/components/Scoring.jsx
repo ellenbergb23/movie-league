@@ -10,7 +10,7 @@ function formatRevenue(revenue) {
   return `$${revenue.toLocaleString()}`;
 }
 
-export function Scoring({ scoring, movies, canEdit, isCommissioner, requireAuth, updateScoring, updateScoringRoot, updateOscarField, updateMovieName, scoringFilm, setScoringFilm, showToast, t }) {
+export function Scoring({ scoring, movies, canEdit, isCommissioner, requireAuth, updateScoring, updateScoringMulti, updateScoringRoot, updateOscarField, updateMovieName, scoringFilm, setScoringFilm, showToast, t }) {
   const [film, setFilm] = useState(scoringFilm || movies[0]);
   const [renaming, setRenaming] = useState(false);
   const [renameVal, setRenameVal] = useState("");
@@ -111,8 +111,8 @@ export function Scoring({ scoring, movies, canEdit, isCommissioner, requireAuth,
                     const tierBn = t2.label.includes("bn") ? v : t2.label.includes("m") ? v/1000 : v;
                     return billions >= tierBn;
                   });
-                  updateScoring(film, "boRaw", revenue);
-                  if (tier) updateScoring(film, "bo", tier.label);
+                  if (tier) updateScoringMulti(film, { boRaw: revenue, bo: tier.label });
+                  else updateScoringMulti(film, { boRaw: revenue });
                 }}
                 style={{ width: "100%", fontSize: 14, fontWeight: 700, fontFamily: "monospace", textAlign: "center", background: "transparent", border: "none", borderBottom: `1px solid ${t.border}`, color: t.text, outline: "none", padding: "2px 0" }}
               />
@@ -135,8 +135,7 @@ export function Scoring({ scoring, movies, canEdit, isCommissioner, requireAuth,
                   const score = parseInt(e.target.value);
                   if (isNaN(score)) return;
                   const tier = score >= 90 ? "90%+ (7pts)" : score >= 60 ? "Fresh 60-89% (2pts)" : "Rotten (0pts)";
-                  updateScoring(film, "criticsRTRaw", score);
-                  updateScoring(film, "criticsRT", tier);
+                  updateScoringMulti(film, { criticsRTRaw: score, criticsRT: tier });
                 }}
                 style={{ width: "100%", fontSize: 14, fontWeight: 700, fontFamily: "monospace", textAlign: "center", background: "transparent", border: "none", borderBottom: `1px solid ${t.border}`, color: t.text, outline: "none", padding: "2px 0" }}
               />
@@ -159,8 +158,7 @@ export function Scoring({ scoring, movies, canEdit, isCommissioner, requireAuth,
                   const score = parseInt(e.target.value);
                   if (isNaN(score)) return;
                   const tier = score >= 90 ? "90%+ (5pts)" : "Below 90% (0pts)";
-                  updateScoring(film, "audienceRTRaw", score);
-                  updateScoring(film, "audienceRT", tier);
+                  updateScoringMulti(film, { audienceRTRaw: score, audienceRT: tier });
                 }}
                 style={{ width: "100%", fontSize: 14, fontWeight: 700, fontFamily: "monospace", textAlign: "center", background: "transparent", border: "none", borderBottom: `1px solid ${t.border}`, color: t.text, outline: "none", padding: "2px 0" }}
               />

@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
 import { SL, Card } from "./ui";
 
-export function CommissionerSettings({ leagueName, updateLeagueName, marxistMode, toggleMarxistMode, leagueUsers, players, assignPlayer, t, showToast, movies, backfillPosters, backfillScoring, scoring, deleteMovie }) {
+export function CommissionerSettings({ leagueName, updateLeagueName, marxistMode, toggleMarxistMode, leagueUsers, players, assignPlayer, t, showToast, movies, backfillPosters, backfillScoring, scoring, deleteMovie, draft }) {
   const [editingLeague, setEditingLeague] = useState(false);
   const [leagueVal, setLeagueVal] = useState(leagueName);
   const [copied, setCopied] = useState(false);
+  const [filmFilter, setFilmFilter] = useState("");
   const [posterProgress, setPosterProgress] = useState(null);
   const [posterRunning, setPosterRunning] = useState(false);
   const [posterResults, setPosterResults] = useState(null);
@@ -40,6 +41,24 @@ export function CommissionerSettings({ leagueName, updateLeagueName, marxistMode
   const inp = { fontSize: 13, padding: "7px 10px", borderRadius: 7, border: `0.5px solid ${t.borderStrong}`, background: t.surface2, color: t.text };
 
   function copyInvite() { navigator.clipboard.writeText(inviteUrl); setCopied(true); setTimeout(() => setCopied(false), 2000); }
+
+  // Finds which player currently has this film in a draft board slot, if any.
+  function findDraftOwner(film) {
+    for (const [player, picks] of Object.entries(draft || {})) {
+      if ((picks || []).includes(film)) return player;
+    }
+    return null;
+  }
+
+  function handleRemoveFilm(film) {
+    const owner = findDraftOwner(film);
+    const msg = owner
+      ? `⚠️ "${film}" is currently drafted by ${owner}. Removing it will clear that pick from their board. Continue?`
+      : `Remove "${film}" from the league? This can't be undone.`;
+    if (window.confirm(msg)) deleteMovie(film);
+  }
+
+  const filteredMovies = [...movies].sort((a, b) => a.localeCompare(b)).filter(f => f.toLowerCase().includes(filmFilter.trim().toLowerCase()));
 
   return (
     <div>
@@ -143,6 +162,41 @@ export function CommissionerSettings({ leagueName, updateLeagueName, marxistMode
             })()}
           </div>
         )}
+      </Card>
+
+      <SL t={t}>manage films · {movies.length}</SL>
+      <Card t={t} style={{ marginBottom: 24 }}>
+        <p style={{ fontSize: 12, color: t.textMuted, lineHeight: 1.5, marginBottom: 10 }}>
+          Remove films you added by mistake or under the wrong title (e.g. old/misnamed entries). This deletes the film and its data entirely — it will no longer be checked by Fetch scoring.
+        </p>
+        <input
+          value={filmFilter}
+          onChange={e => setFilmFilter(e.target.value)}
+          placeholder="Filter films…"
+          style={{ ...inp, width: "100%", boxSizing: "border-box", marginBottom: 10 }}
+        />
+        <div style={{ maxHeight: 320, overflowY: "auto", border: `0.5px solid ${t.border}`, borderRadius: 8 }}>
+          {filteredMovies.length === 0 && (
+            <div style={{ padding: "12px 14px", fontSize: 12, color: t.textMuted }}>No films match.</div>
+          )}
+          {filteredMovies.map((f, i) => {
+            const owner = findDraftOwner(f);
+            return (
+              <div key={f} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "9px 14px", borderBottom: i < filteredMovies.length - 1 ? `0.5px solid ${t.border}` : "none", background: i % 2 === 0 ? t.surface : t.rowAlt }}>
+                <span style={{ fontSize: 13, color: t.text, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {f}
+                  {owner && <span style={{ fontSize: 10, color: t.gold, marginLeft: 8, fontWeight: 600 }}>· drafted by {owner}</span>}
+                </span>
+                <button
+                  onClick={() => handleRemoveFilm(f)}
+                  style={{ fontSize: 11, color: t.red, background: "none", border: `0.5px solid ${t.red}`, borderRadius: 6, cursor: "pointer", padding: "3px 8px", flexShrink: 0 }}
+                >
+                  remove
+                </button>
+              </div>
+            );
+          })}
+        </div>
       </Card>
 
       <SL t={t}>marxist mode</SL>

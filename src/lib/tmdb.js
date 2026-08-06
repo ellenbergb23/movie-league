@@ -65,10 +65,28 @@ export async function getTMDBBoxOffice(title, year = null) {
     const data = await res.json();
     if (!data.results || data.results.length === 0) return null;
     const results = data.results.filter(r => r.title && r.release_date);
-    let best = results.find(r =>
-      r.title.trim().toLowerCase() === title.trim().toLowerCase() &&
-      (year ? r.release_date.startsWith(year) : true)
-    );
+    const ALLOWED_YEARS = ["2025", "2026", "2027"];
+
+    let best;
+    if (year) {
+      // Explicit year requested — exact title + that year
+      best = results.find(r =>
+        r.title.trim().toLowerCase() === title.trim().toLowerCase() &&
+        r.release_date.startsWith(year)
+      );
+    } else {
+      // No year given — prefer an exact-title match within the league's active years first,
+      // to avoid grabbing an unrelated same-titled film from another year (e.g. a 2024 foreign
+      // film sharing a title with a 2026 US release).
+      best = results.find(r =>
+        r.title.trim().toLowerCase() === title.trim().toLowerCase() &&
+        ALLOWED_YEARS.includes(r.release_date.slice(0, 4))
+      );
+    }
+    if (!best) {
+      // Fall back to exact title match regardless of year
+      best = results.find(r => r.title.trim().toLowerCase() === title.trim().toLowerCase());
+    }
     if (!best && year) {
       best = results.find(r => r.release_date.startsWith(year));
     }

@@ -10,7 +10,9 @@ import {
   dbGetDraft, dbSetDraftPick, dbGetScores, dbSetScore, dbGetMovies, dbAddMovie,
   dbDeleteMovie, dbRenameMovie, dbRenamePlayer, dbGetLeagueUsers, dbAssignPlayer, dbGetCurrentUser,
   dbGetIR, dbSetIR, dbGetReplacements, dbSetReplacements,
+  dbGetScoringRules, dbSetScoringRules,
 } from "./lib/db";
+import { defaultScoringRules } from "./lib/scoringRules";
 import { AuthModal } from "./components/AuthModal";
 import { WaitingPage } from "./components/WaitingPage";
 import { Leaderboard } from "./components/Leaderboard";
@@ -18,6 +20,7 @@ import { DraftBoard } from "./components/DraftBoard";
 import { Scoring } from "./components/Scoring";
 import { Settings } from "./components/Settings";
 import { CommissionerSettings } from "./components/CommissionerSettings";
+import { LeagueManagement } from "./components/LeagueManagement";
 
 export default function App() {
   const [authUser, setAuthUser] = useState(null);
@@ -40,6 +43,8 @@ export default function App() {
   const [toast, setToast] = useState(null);
   const [irSlots, setIrSlots] = useState({}); // { playerName: filmTitle }
   const [replacements, setReplacements] = useState({}); // { playerName: filmTitle } — permanent, set once when a slot freed by IR is filled
+  const [scoringRules, setScoringRules] = useState(() => defaultScoringRules());
+  const [lmDirty, setLmDirty] = useState(false); // true while League Management has unapplied edits
 
   const t = darkMode ? THEMES.dark : THEMES.light;
   const isCommissioner = authUser?.email === COMMISSIONER_EMAIL;
@@ -70,8 +75,8 @@ export default function App() {
   useEffect(() => {
     async function load() {
       setDataLoading(true);
-      const [name, loadedPlayers, movieData, scoreData, usersData, openScoring, irData, replacementsData] = await Promise.all([
-        dbGetLeagueName(), dbGetPlayers(), dbGetMovies(), dbGetScores(), dbGetLeagueUsers(), dbGetOpenScoringMode(), dbGetIR(), dbGetReplacements()
+      const [name, loadedPlayers, movieData, scoreData, usersData, openScoring, irData, replacementsData, rulesData] = await Promise.all([
+        dbGetLeagueName(), dbGetPlayers(), dbGetMovies(), dbGetScores(), dbGetLeagueUsers(), dbGetOpenScoringMode(), dbGetIR(), dbGetReplacements(), dbGetScoringRules()
       ]);
       setLeagueName(name);
       setPlayers(loadedPlayers);
@@ -81,6 +86,7 @@ export default function App() {
       setOpenScoringMode(openScoring);
       setIrSlots(irData);
       setReplacements(replacementsData);
+      setScoringRules(rulesData);
       const draftData = await dbGetDraft(loadedPlayers);
       setDraft(draftData);
       setDataLoading(false);
@@ -96,6 +102,7 @@ export default function App() {
       setOpenScoringMode(await dbGetOpenScoringMode());
       setIrSlots(await dbGetIR());
       setReplacements(await dbGetReplacements());
+      setScoringRules(await dbGetScoringRules());
     }).subscribe();
     const usersSub = supabase.channel("us").on("postgres_changes", { event: "*", schema: "public", table: "users", filter: `league_id=eq.${LEAGUE_ID}` }, async () => {
       setLeagueUsers(await dbGetLeagueUsers());
@@ -104,6 +111,22 @@ export default function App() {
 
     return () => { scoreSub.unsubscribe(); draftSub.unsubscribe(); movieSub.unsubscribe(); settingsSub.unsubscribe(); usersSub.unsubscribe(); };
   }, [authUser]);
+
+  function requestTabChange(nextTab) {
+    if (tab === "league management" && lmDirty && nextTab !== tab) {
+      if (!window.confirm("You have unsaved scoring rule changes. Leave without applying them?")) return;
+      setLmDirty(false);
+    }
+    setTab(nextTab);
+  }
+
+  useEffect(() => {
+    function handleBeforeUnload(e) {
+      if (tab === "league management" && lmDirty) { e.preventDefault(); e.returnValue = ""; }
+    }
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [tab, lmDirty]);
 
   function showToast(msg) { setToast(msg); setTimeout(() => setToast(null), 2000); }
   function toggleDark() { setDarkMode(d => { localStorage.setItem("darkMode", !d); return !d; }); }
@@ -122,6 +145,12 @@ export default function App() {
   }
 
   async function updateLeagueName(name) { setLeagueName(name); await dbSet("league_name", name); showToast("Saved"); }
+
+  async function updateScoringRules(rules) {
+    setScoringRules(rules);
+    await dbSetScoringRules(rules);
+    showToast("Scoring rules applied");
+  }
 
   async function renamePlayer(oldName, newName) {
     if (!newName.trim() || newName === oldName) return;
@@ -547,7 +576,7 @@ export default function App() {
     return (draft[player] || []).reduce((sum, film) => {
       if (!film) return sum;
       if (film === irFilm) return sum; // IR film scores 0
-      return sum + calcFilmScore(film, scoringWithMeta);
+      return sum + calcFilmScore(film, scoringWithMeta, scoringRules);
     }, 0);
   }
 
@@ -564,7 +593,7 @@ export default function App() {
   if (authUser && !isCommissioner && !isAssigned) return <WaitingPage t={t} user={authUser} onSignOut={signOut} />;
 
   const tabs = ["leaderboard","draft board","scoring","settings"];
-  if (isCommissioner) tabs.push("commissioner");
+  if (isCommissioner) tabs.push("commissioner", "league management");
 
   return (
     <div style={{ fontFamily: "'Inter', system-ui, sans-serif", minHeight: "100vh", background: t.bg, color: t.text }}>
@@ -596,16 +625,17 @@ export default function App() {
 
       <nav style={{ background: t.header, borderBottom: `0.5px solid ${t.border}`, padding: "0 1.5rem", display: "flex" }}>
         {tabs.map(tb => (
-          <button key={tb} onClick={() => setTab(tb)} style={{ padding: "12px 16px", fontSize: 13, fontWeight: tab === tb ? 600 : 400, color: tab === tb ? t.navActive : tb === "commissioner" ? t.gold : t.navInactive, borderBottom: tab === tb ? `2px solid ${tab === "commissioner" ? t.gold : t.navActive}` : "2px solid transparent", background: "none", border: "none", borderBottom: tab === tb ? `2px solid ${tab === "commissioner" ? t.gold : t.navActive}` : "2px solid transparent", cursor: "pointer" }}>{tb}</button>
+          <button key={tb} onClick={() => requestTabChange(tb)} style={{ padding: "12px 16px", fontSize: 13, fontWeight: tab === tb ? 600 : 400, color: tab === tb ? t.navActive : (tb === "commissioner" || tb === "league management") ? t.gold : t.navInactive, borderBottom: tab === tb ? `2px solid ${(tab === "commissioner" || tab === "league management") ? t.gold : t.navActive}` : "2px solid transparent", background: "none", border: "none", borderBottom: tab === tb ? `2px solid ${(tab === "commissioner" || tab === "league management") ? t.gold : t.navActive}` : "2px solid transparent", cursor: "pointer" }}>{tb}</button>
         ))}
       </nav>
 
       <main style={{ maxWidth: 880, margin: "0 auto", padding: "1.5rem" }}>
-        {tab === "leaderboard"  && <Leaderboard rankedPlayers={rankedPlayers} getPlayerTotal={getPlayerTotal} draft={draft} scoring={scoringWithMeta} t={t} goToPlayerDraft={goToPlayerDraft} irSlots={irSlots} />}
-        {tab === "draft board"  && <DraftBoard draft={draft} players={players} movies={movies} canEdit={canEdit} isCommissioner={isCommissioner} openScoringMode={openScoringMode} updateDraftPick={updateDraftPick} requireAuth={requireAuth} scoring={scoringWithMeta} goToFilmScoring={goToFilmScoring} t={t} focusPlayer={draftFocusPlayer} addMovie={addMovie} irSlots={irSlots} placeOnIR={placeOnIR} removeFromIR={removeFromIR} replacements={replacements} />}
-        {tab === "scoring"      && <Scoring scoring={scoringWithMeta} movies={movies} canEdit={canEdit} isCommissioner={isCommissioner} requireAuth={requireAuth} updateScoring={updateScoring} updateScoringMulti={updateScoringMulti} updateScoringRoot={updateScoringRoot} updateOscarField={updateOscarField} updateMovieName={updateMovieName} scoringFilm={scoringFilm} setScoringFilm={setScoringFilm} showToast={showToast} fetchFilmScoring={fetchFilmScoring} t={t} />}
+        {tab === "leaderboard"  && <Leaderboard rankedPlayers={rankedPlayers} getPlayerTotal={getPlayerTotal} draft={draft} scoring={scoringWithMeta} t={t} goToPlayerDraft={goToPlayerDraft} irSlots={irSlots} rules={scoringRules} />}
+        {tab === "draft board"  && <DraftBoard draft={draft} players={players} movies={movies} canEdit={canEdit} isCommissioner={isCommissioner} openScoringMode={openScoringMode} updateDraftPick={updateDraftPick} requireAuth={requireAuth} scoring={scoringWithMeta} goToFilmScoring={goToFilmScoring} t={t} focusPlayer={draftFocusPlayer} addMovie={addMovie} irSlots={irSlots} placeOnIR={placeOnIR} removeFromIR={removeFromIR} replacements={replacements} rules={scoringRules} />}
+        {tab === "scoring"      && <Scoring scoring={scoringWithMeta} movies={movies} canEdit={canEdit} isCommissioner={isCommissioner} requireAuth={requireAuth} updateScoring={updateScoring} updateScoringMulti={updateScoringMulti} updateScoringRoot={updateScoringRoot} updateOscarField={updateOscarField} updateMovieName={updateMovieName} scoringFilm={scoringFilm} setScoringFilm={setScoringFilm} showToast={showToast} fetchFilmScoring={fetchFilmScoring} t={t} rules={scoringRules} />}
         {tab === "settings"     && <Settings movies={movies} players={players} canEdit={canEdit} myPlayerName={myPlayerName} openScoringMode={openScoringMode} updateMovieName={updateMovieName} addMovie={addMovie} renamePlayer={renamePlayer} t={t} showToast={showToast} requireAuth={requireAuth} isCommissioner={isCommissioner} searchTMDB={searchTMDB} scoring={scoringWithMeta} />}
         {tab === "commissioner" && isCommissioner && <CommissionerSettings leagueName={leagueName} updateLeagueName={updateLeagueName} openScoringMode={openScoringMode} toggleOpenScoringMode={toggleOpenScoringMode} leagueUsers={leagueUsers} players={players} assignPlayer={assignPlayer} t={t} showToast={showToast} movies={movies} backfillPosters={backfillPosters} backfillScoring={backfillScoring} scoring={scoringWithMeta} deleteMovie={deleteMovie} draft={draft} applyUnreleasedData={applyUnreleasedData} />}
+        {tab === "league management" && isCommissioner && <LeagueManagement rules={scoringRules} updateScoringRules={updateScoringRules} onDirtyChange={setLmDirty} t={t} showToast={showToast} />}
       </main>
     </div>
   );

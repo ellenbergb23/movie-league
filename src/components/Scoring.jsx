@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { BO_TIERS, RT_OPTIONS, RT_AUD_OPTIONS, OSCAR_CATEGORIES } from "../lib/constants";
-import { calcFilmScore, getFilmOscarStatus, isFilmReleased, getRTPoints, getBOPoints } from "../lib/scoring";
+import { calcFilmScore, getFilmOscarStatus, isFilmReleased, getBOPoints } from "../lib/scoring";
+import { resolveBOTier, formatBOLabel, getCriticsPoints, getAudiencePoints } from "../lib/scoringRules";
 import { Card, Poster } from "./ui";
 
 function formatRevenue(revenue) {
@@ -10,7 +10,7 @@ function formatRevenue(revenue) {
   return `$${revenue.toLocaleString()}`;
 }
 
-export function Scoring({ scoring, movies, canEdit, isCommissioner, requireAuth, updateScoring, updateScoringMulti, updateScoringRoot, updateOscarField, updateMovieName, scoringFilm, setScoringFilm, showToast, fetchFilmScoring, t }) {
+export function Scoring({ scoring, movies, canEdit, isCommissioner, requireAuth, updateScoring, updateScoringMulti, updateScoringRoot, updateOscarField, updateMovieName, scoringFilm, setScoringFilm, showToast, fetchFilmScoring, t, rules }) {
   const [film, setFilm] = useState(scoringFilm || movies[0]);
   const [renaming, setRenaming] = useState(false);
   const [renameVal, setRenameVal] = useState("");
@@ -22,8 +22,10 @@ export function Scoring({ scoring, movies, canEdit, isCommissioner, requireAuth,
   useEffect(() => { window.scrollTo(0, 0); }, [film]);
 
   const fs = scoring[film] || {};
-  const total = calcFilmScore(film, scoring);
-  const status = getFilmOscarStatus(film, scoring);
+  const total = calcFilmScore(film, scoring, rules);
+  const status = getFilmOscarStatus(film, scoring, rules);
+  const boTiersSorted = [...(rules.boTiers || [])].sort((a, b) => b.millions - a.millions);
+  const oscarCategories = rules.oscarCategories || [];
   const biggestOpening = scoring._biggestOpeningFilm || "";
   const mostNumber1 = scoring._mostNumber1Film || "";
   const filteredFilms = movies.filter(m => m.toLowerCase().includes(filmSearch.toLowerCase()));
@@ -147,18 +149,7 @@ export function Scoring({ scoring, movies, canEdit, isCommissioner, requireAuth,
                   const millions = parseFloat(raw);
                   if (isNaN(millions) || millions <= 0) return;
                   const revenue = Math.round(millions * 1_000_000);
-                  // derive tier from BO_TIERS directly
-                  const billions = millions / 1000;
-                  const sorted = [...BO_TIERS].sort((a, b) => {
-                    const parse = l => { const m = l.match(/[\d.]+/); if (!m) return 0; const v = parseFloat(m[0]); return l.includes("bn") ? v : l.includes("m") ? v/1000 : v; };
-                    return parse(b.label) - parse(a.label);
-                  });
-                  const tier = sorted.find(t2 => {
-                    const m2 = t2.label.match(/[\d.]+/); if (!m2) return false;
-                    const v = parseFloat(m2[0]);
-                    const tierBn = t2.label.includes("bn") ? v : t2.label.includes("m") ? v/1000 : v;
-                    return billions >= tierBn;
-                  });
+                  const tier = resolveBOTier(millions, rules.boTiers);
                   if (tier) updateScoringMulti(film, { boRaw: revenue, bo: tier.label, boManual: true });
                   else updateScoringMulti(film, { boRaw: revenue, boManual: true });
                 }}
@@ -184,8 +175,7 @@ export function Scoring({ scoring, movies, canEdit, isCommissioner, requireAuth,
                   if (raw === "") { updateScoringMulti(film, { criticsRTRaw: null, criticsRT: "" }); return; }
                   const score = parseInt(raw);
                   if (isNaN(score)) return;
-                  const tier = score >= 90 ? "90%+ (7pts)" : score >= 60 ? "Fresh 60-89% (2pts)" : "Rotten (0pts)";
-                  updateScoringMulti(film, { criticsRTRaw: score, criticsRT: tier });
+                  updateScoringMulti(film, { criticsRTRaw: score });
                 }}
                 style={{ width: "100%", fontSize: 14, fontWeight: 700, fontFamily: "monospace", textAlign: "center", background: "transparent", border: "none", borderBottom: `1px solid ${t.border}`, color: t.text, outline: "none", padding: "2px 0" }}
               />
@@ -209,8 +199,7 @@ export function Scoring({ scoring, movies, canEdit, isCommissioner, requireAuth,
                   if (raw === "") { updateScoringMulti(film, { audienceRTRaw: null, audienceRT: "" }); return; }
                   const score = parseInt(raw);
                   if (isNaN(score)) return;
-                  const tier = score >= 90 ? "90%+ (5pts)" : "Below 90% (0pts)";
-                  updateScoringMulti(film, { audienceRTRaw: score, audienceRT: tier });
+                  updateScoringMulti(film, { audienceRTRaw: score });
                 }}
                 style={{ width: "100%", fontSize: 14, fontWeight: 700, fontFamily: "monospace", textAlign: "center", background: "transparent", border: "none", borderBottom: `1px solid ${t.border}`, color: t.text, outline: "none", padding: "2px 0" }}
               />
@@ -228,21 +217,23 @@ export function Scoring({ scoring, movies, canEdit, isCommissioner, requireAuth,
           <span style={lbl}>Box office</span>
           <select disabled={!canEdit} value={fs.bo || ""} onChange={e => withAuth(() => updateScoringMulti(film, { bo: e.target.value, boManual: !!e.target.value }))} style={sel}>
             <option value="">— select tier —</option>
-            {BO_TIERS.map(tier => <option key={tier.label} value={tier.label}>{tier.label} = {tier.pts} pts</option>)}
+            {boTiersSorted.map(tier => <option key={tier.millions} value={formatBOLabel(tier.millions)}>{formatBOLabel(tier.millions)}+ = {tier.pts} pts</option>)}
           </select>
-          {fs.bo && <p style={{ marginTop: 8, fontSize: 13, color: t.gold, fontFamily: "monospace", fontWeight: 600 }}>{getBOPoints(fs.bo)} pts</p>}
+          {fs.bo && <p style={{ marginTop: 8, fontSize: 13, color: t.gold, fontFamily: "monospace", fontWeight: 600 }}>{getBOPoints(fs.bo, rules)} pts</p>}
         </Card>
         <Card t={t}>
           <span style={lbl}>Rotten tomatoes</span>
           <label style={{ fontSize: 12, color: t.textMuted, display: "block", marginBottom: 4 }}>Critics</label>
-          <select disabled={!canEdit} value={fs.criticsRT || ""} onChange={e => set("criticsRT", e.target.value)} style={{ ...sel, marginBottom: 8 }}>
-            {RT_OPTIONS.map(o => <option key={o} value={o}>{o || "— select —"}</option>)}
+          <select disabled={!canEdit} value={fs.criticsRTRaw ?? ""} onChange={e => withAuth(() => updateScoringMulti(film, { criticsRTRaw: e.target.value === "" ? null : parseInt(e.target.value) }))} style={{ ...sel, marginBottom: 8 }}>
+            <option value="">— select —</option>
+            {[...(rules.critics?.breakpoints || [])].sort((a, b) => b.min - a.min).map(bp => <option key={bp.min} value={bp.min}>{bp.min}%+ ({bp.pts} pts)</option>)}
           </select>
           <label style={{ fontSize: 12, color: t.textMuted, display: "block", marginBottom: 4 }}>Audience</label>
-          <select disabled={!canEdit} value={fs.audienceRT || ""} onChange={e => set("audienceRT", e.target.value)} style={sel}>
-            {RT_AUD_OPTIONS.map(o => <option key={o} value={o}>{o || "— select —"}</option>)}
+          <select disabled={!canEdit} value={fs.audienceRTRaw ?? ""} onChange={e => withAuth(() => updateScoringMulti(film, { audienceRTRaw: e.target.value === "" ? null : parseInt(e.target.value) }))} style={sel}>
+            <option value="">— select —</option>
+            {[...(rules.audience?.breakpoints || [])].sort((a, b) => b.min - a.min).map(bp => <option key={bp.min} value={bp.min}>{bp.min}%+ ({bp.pts} pts)</option>)}
           </select>
-          <p style={{ marginTop: 8, fontSize: 13, color: t.gold, fontFamily: "monospace", fontWeight: 600 }}>{getRTPoints(fs.criticsRT || "", fs.audienceRT || "")} pts</p>
+          <p style={{ marginTop: 8, fontSize: 13, color: t.gold, fontFamily: "monospace", fontWeight: 600 }}>{getCriticsPoints(fs.criticsRTRaw, rules) + getAudiencePoints(fs.audienceRTRaw, rules)} pts</p>
         </Card>
       </div>
 
@@ -278,7 +269,8 @@ export function Scoring({ scoring, movies, canEdit, isCommissioner, requireAuth,
       <Card t={t}>
         <span style={lbl}>Oscar nominations & wins</span>
         <div style={{ display: "grid", gap: 5 }}>
-          {OSCAR_CATEGORIES.map((cat, i) => {
+          {oscarCategories.filter(cat => cat.enabled !== false).map((cat) => {
+            const i = oscarCategories.indexOf(cat);
             const isNom = (fs.oscarNoms?.[i] || []).includes(film);
             const isWin = (fs.oscarWinner?.[i] || "") === film;
             const isBP = i === 0;

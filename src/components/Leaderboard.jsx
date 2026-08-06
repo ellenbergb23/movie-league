@@ -2,7 +2,7 @@ import { PLAYER_COLORS, DEFAULT_PLAYERS } from "../lib/constants";
 import { getPlayerOscarTotals, getPlayerReleaseStats } from "../lib/scoring";
 import { SL, Card, OscarBadge } from "./ui";
 
-export function Leaderboard({ rankedPlayers, getPlayerTotal, draft, scoring, t, goToPlayerDraft, irSlots }) {
+export function Leaderboard({ rankedPlayers, getPlayerTotal, draft, scoring, t, goToPlayerDraft, irSlots, rules }) {
   const maxPts = Math.max(...rankedPlayers.map(p => getPlayerTotal(p)), 1);
   const medals = ["🥇","🥈","🥉"];
   return (
@@ -13,9 +13,9 @@ export function Leaderboard({ rankedPlayers, getPlayerTotal, draft, scoring, t, 
           const pts = getPlayerTotal(player);
           const pct = Math.round((pts / maxPts) * 100);
           const color = PLAYER_COLORS[DEFAULT_PLAYERS.indexOf(player) % PLAYER_COLORS.length];
-          const { noms, wins } = getPlayerOscarTotals(player, draft, scoring);
+          const { noms, wins } = getPlayerOscarTotals(player, draft, scoring, rules);
           const irFilm = irSlots?.[player] || null;
-          const { released, unreleased, onIR, avgScore } = getPlayerReleaseStats(player, draft, scoring, irFilm);
+          const { released, unreleased, onIR, avgScore } = getPlayerReleaseStats(player, draft, scoring, irFilm, rules);
           return (
             <Card key={player} t={t}>
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>

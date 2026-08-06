@@ -4,7 +4,7 @@ import { calcFilmScore, getFilmOscarStatus, isFilmReleased } from "../lib/scorin
 import { searchTMDB } from "../lib/tmdb";
 import { SL, Card, Poster } from "./ui";
 
-export function DraftBoard({ draft, players, movies, canEdit, isCommissioner, openScoringMode, updateDraftPick, requireAuth, scoring, goToFilmScoring, t, focusPlayer, addMovie, irSlots, placeOnIR, removeFromIR, replacements }) {
+export function DraftBoard({ draft, players, movies, canEdit, isCommissioner, openScoringMode, updateDraftPick, requireAuth, scoring, goToFilmScoring, t, focusPlayer, addMovie, irSlots, placeOnIR, removeFromIR, replacements, rules }) {
   const sel = { width: "100%", fontSize: 11, padding: "4px 6px", borderRadius: 6, border: `0.5px solid ${t.border}`, background: t.selectBg, color: t.text, cursor: "pointer" };
   const [editingSlot, setEditingSlot] = useState(null);
   const [swapQuery, setSwapQuery] = useState("");
@@ -112,7 +112,7 @@ export function DraftBoard({ draft, players, movies, canEdit, isCommissioner, op
         const replacementFilm = replacements?.[player] || null;
         const total = picks.reduce((s, f) => {
           if (!f || f === irFilm) return s;
-          return s + calcFilmScore(f, scoring);
+          return s + calcFilmScore(f, scoring, rules);
         }, 0);
         const isFocused = focusPlayer === player;
 
@@ -128,8 +128,8 @@ export function DraftBoard({ draft, players, movies, canEdit, isCommissioner, op
               {picks.map((film, ri) => {
                 const round = ["1","2","3","4","5","6","7","S1","S2"][ri];
                 const isOnIR = film && film === irFilm;
-                const score = film && !isOnIR ? calcFilmScore(film, scoring) : null;
-                const status = film && !isOnIR ? getFilmOscarStatus(film, scoring) : {};
+                const score = film && !isOnIR ? calcFilmScore(film, scoring, rules) : null;
+                const status = film && !isOnIR ? getFilmOscarStatus(film, scoring, rules) : {};
                 const { nominated, winner } = status;
                 const slotKey = `${player}-${ri}`;
                 const isEditing = editingSlot === slotKey;

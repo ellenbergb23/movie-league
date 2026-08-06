@@ -22,6 +22,7 @@ import { Scoring } from "./components/Scoring";
 import { Settings } from "./components/Settings";
 import { CommissionerSettings } from "./components/CommissionerSettings";
 import { LeagueManagement } from "./components/LeagueManagement";
+import { AllFilms } from "./components/AllFilms";
 
 // Pre-multi-slot data stored one film string per player (e.g. { "Ryan Williams": "Some Film" }).
 // Coerce any legacy string values into single-item arrays so old league data keeps working.
@@ -625,9 +626,9 @@ export default function App() {
   // Only show waiting page if logged in but not yet assigned (and not commissioner)
   if (authUser && !isCommissioner && !isAssigned) return <WaitingPage t={t} user={authUser} onSignOut={signOut} />;
 
-  const tabs = ["leaderboard","draft board","scoring","settings"];
+  const tabs = ["leaderboard","draft board","all films","scoring","settings"];
   if (isCommissioner) tabs.push("commissioner", "league management");
-  const tabLabels = { "leaderboard": "Leaderboard", "draft board": "Draft Board", "scoring": "Scoring", "settings": "Settings", "commissioner": "Commissioner", "league management": "League Management" };
+  const tabLabels = { "leaderboard": "Leaderboard", "draft board": "Draft Board", "all films": "All Films", "scoring": "Scoring", "settings": "Settings", "commissioner": "Commissioner", "league management": "League Management" };
 
   return (
     <div style={{ fontFamily: FONT_SANS, minHeight: "100vh", background: t.bg, color: t.text }}>
@@ -678,6 +679,7 @@ export default function App() {
       <main style={{ maxWidth: 900, margin: "0 auto", padding: "1.5rem" }}>
         {tab === "leaderboard"  && <Leaderboard rankedPlayers={rankedPlayers} getPlayerTotal={getPlayerTotal} draft={draft} scoring={scoringWithMeta} t={t} goToPlayerDraft={goToPlayerDraft} irSlots={irSlots} rules={scoringRules} />}
         {tab === "draft board"  && <DraftBoard draft={draft} players={players} movies={movies} canEdit={canEdit} isCommissioner={isCommissioner} openScoringMode={openScoringMode} updateDraftPick={updateDraftPick} requireAuth={requireAuth} scoring={scoringWithMeta} goToFilmScoring={goToFilmScoring} t={t} focusPlayer={draftFocusPlayer} addMovie={addMovie} irSlots={irSlots} placeOnIR={placeOnIR} removeFromIR={removeFromIR} replacements={replacements} rules={scoringRules} irConfig={irConfig} />}
+        {tab === "all films"    && <AllFilms movies={movies} scoring={scoringWithMeta} rules={scoringRules} t={t} goToFilmScoring={goToFilmScoring} />}
         {tab === "scoring"      && <Scoring scoring={scoringWithMeta} movies={movies} canEdit={canEdit} isCommissioner={isCommissioner} requireAuth={requireAuth} updateScoring={updateScoring} updateScoringMulti={updateScoringMulti} updateScoringRoot={updateScoringRoot} updateOscarField={updateOscarField} updateMovieName={updateMovieName} scoringFilm={scoringFilm} setScoringFilm={setScoringFilm} showToast={showToast} fetchFilmScoring={fetchFilmScoring} t={t} rules={scoringRules} />}
         {tab === "settings"     && <Settings movies={movies} players={players} canEdit={canEdit} myPlayerName={myPlayerName} openScoringMode={openScoringMode} updateMovieName={updateMovieName} addMovie={addMovie} renamePlayer={renamePlayer} t={t} showToast={showToast} requireAuth={requireAuth} isCommissioner={isCommissioner} searchTMDB={searchTMDB} scoring={scoringWithMeta} />}
         {tab === "commissioner" && isCommissioner && <CommissionerSettings leagueName={leagueName} updateLeagueName={updateLeagueName} openScoringMode={openScoringMode} toggleOpenScoringMode={toggleOpenScoringMode} leagueUsers={leagueUsers} players={players} assignPlayer={assignPlayer} t={t} showToast={showToast} movies={movies} backfillPosters={backfillPosters} backfillScoring={backfillScoring} scoring={scoringWithMeta} deleteMovie={deleteMovie} draft={draft} applyUnreleasedData={applyUnreleasedData} />}

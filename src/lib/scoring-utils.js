@@ -31,3 +31,10 @@ function parseTierValue(label) {
 export function isValidRevenue(revenue) {
   return revenue && typeof revenue === "number" && revenue > 0 && isFinite(revenue);
 }
+
+export function formatRevenue(revenue) {
+  if (!revenue) return "—";
+  if (revenue >= 1_000_000_000) return `$${(revenue / 1_000_000_000).toFixed(2)}bn`;
+  if (revenue >= 1_000_000) return `$${(revenue / 1_000_000).toFixed(1)}m`;
+  return `$${revenue.toLocaleString()}`;
+}

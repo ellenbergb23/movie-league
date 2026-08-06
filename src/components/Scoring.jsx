@@ -1,14 +1,8 @@
 import { useState, useEffect } from "react";
 import { calcFilmScore, getFilmOscarStatus, isFilmReleased, getBOPoints } from "../lib/scoring";
 import { resolveBOTier, formatBOLabel, getCriticsPoints, getAudiencePoints } from "../lib/scoringRules";
+import { formatRevenue } from "../lib/scoring-utils";
 import { Card, Poster, CollapsibleSL } from "./ui";
-
-function formatRevenue(revenue) {
-  if (!revenue) return "—";
-  if (revenue >= 1_000_000_000) return `$${(revenue / 1_000_000_000).toFixed(2)}bn`;
-  if (revenue >= 1_000_000) return `$${(revenue / 1_000_000).toFixed(1)}m`;
-  return `$${revenue.toLocaleString()}`;
-}
 
 export function Scoring({ scoring, movies, canEdit, isCommissioner, requireAuth, updateScoring, updateScoringMulti, updateScoringRoot, updateOscarField, updateMovieName, scoringFilm, setScoringFilm, showToast, fetchFilmScoring, t, rules }) {
   const [film, setFilm] = useState(scoringFilm || movies[0]);

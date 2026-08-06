@@ -224,6 +224,7 @@ export default function App() {
     let rtUpdated = 0, rtSkipped = 0;
     const boNotFound = [], rtNotFound = [];
     const boTooEarly = [], rtTooEarly = [];
+    const unreleasedWithData = []; // films toggled Unreleased that now have data suggesting otherwise
     const BO_MIN_REVENUE = 5_000_000;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -232,12 +233,7 @@ export default function App() {
       const film = movies[i];
       if (onProgress) onProgress(i + 1, movies.length, film);
       const currentScoring = scoring[film] || {};
-      // Skip films explicitly marked unreleased by commissioner
-      if (currentScoring.released === false) {
-        boSkipped++;
-        rtSkipped++;
-        continue;
-      }
+      const manuallyUnreleased = currentScoring.released === false;
       const hasBO = !!currentScoring.bo;
       const hasRT = !!currentScoring.criticsRT || !!currentScoring.audienceRT;
 
@@ -245,8 +241,9 @@ export default function App() {
       let resolvedTmdbId = currentScoring.tmdbId || null;
       let resolvedReleaseYear = currentScoring.releaseYear || null;
       let resolvedHasBoxOffice = hasBO;
+      const candidate = {}; // fields found for a manually-unreleased film — review only, never auto-saved
 
-      // --- Box office (always re-fetched/overwritten from TMDB worldwide gross) ---
+      // --- Box office (always fetched — even for manually-unreleased films, to check for a review prompt) ---
       {
         const tmdbResult = await getTMDBBoxOffice(film);
         const revenue = tmdbResult?.revenue;
@@ -254,7 +251,15 @@ export default function App() {
         if (tmdbResult?.tmdbId) resolvedTmdbId = tmdbResult.tmdbId;
         if (tmdbResult?.releaseYear) resolvedReleaseYear = tmdbResult.releaseYear;
 
-        if (revenue && isValidRevenue(revenue)) {
+        if (manuallyUnreleased) {
+          if (revenue && isValidRevenue(revenue) && revenue >= BO_MIN_REVENUE) {
+            candidate.boRaw = revenue;
+            candidate.bo = revenueToBoxOfficeTier(revenue);
+            candidate.tmdbId = resolvedTmdbId;
+            candidate.releaseYear = resolvedReleaseYear;
+            resolvedHasBoxOffice = true;
+          }
+        } else if (revenue && isValidRevenue(revenue)) {
           if (revenue < BO_MIN_REVENUE) {
             boTooEarly.push(film);
           } else {
@@ -266,7 +271,7 @@ export default function App() {
             boUpdated++;
             resolvedHasBoxOffice = true;
           }
-        } else {
+        } else if (!manuallyUnreleased) {
           if (resolvedTmdbId || resolvedReleaseYear) {
             const updatedData = { ...currentScoring, tmdbId: resolvedTmdbId, releaseYear: resolvedReleaseYear };
             setScoring(prev => ({ ...prev, [film]: updatedData }));
@@ -277,6 +282,38 @@ export default function App() {
       }
 
       // --- RT scores ---
+      if (manuallyUnreleased) {
+        let wideReleaseDate = null;
+        if (resolvedTmdbId) {
+          const wideDateStr = await getTMDBWideReleaseDate(resolvedTmdbId);
+          if (wideDateStr) {
+            wideReleaseDate = new Date(wideDateStr);
+            wideReleaseDate.setHours(0, 0, 0, 0);
+          }
+        }
+        const looksReleased = (wideReleaseDate && wideReleaseDate <= today) || resolvedHasBoxOffice;
+        if (looksReleased) {
+          let omdbData = null;
+          if (resolvedReleaseYear) {
+            const year = parseInt(resolvedReleaseYear);
+            omdbData = await getOMDbData(film, String(year));
+            if (!omdbData) omdbData = await getOMDbData(film, String(year - 1));
+            if (!omdbData) omdbData = await getOMDbData(film, String(year + 1));
+          } else {
+            omdbData = await getOMDbData(film);
+          }
+          if (omdbData) {
+            const rtScores = extractRTScores(omdbData);
+            if (rtScores.criticsRT || rtScores.audienceRT) Object.assign(candidate, rtScores);
+          }
+        }
+        if (Object.keys(candidate).length > 0) unreleasedWithData.push({ film, candidate });
+        boSkipped++;
+        rtSkipped++;
+        await new Promise(r => setTimeout(r, 350));
+        continue;
+      }
+
       if (!forceRecheck && hasRT) {
         rtSkipped++;
       } else {
@@ -333,7 +370,14 @@ export default function App() {
     if (rtUpdated > 0 || rtSkipped > 0) summaryLines.push(`RT Scores: ${rtUpdated} added · ${rtSkipped} skipped`);
     const summary = summaryLines.join(" | ");
     showToast(summary || "No updates");
-    return { boUpdated, boSkipped, boNotFound, rtUpdated, rtSkipped, rtNotFound, boTooEarly, rtTooEarly };
+    return { boUpdated, boSkipped, boNotFound, rtUpdated, rtSkipped, rtNotFound, boTooEarly, rtTooEarly, unreleasedWithData };
+  }
+
+  async function applyUnreleasedData(film, candidate) {
+    const updated = { ...(scoring[film] || {}), ...candidate, released: true };
+    setScoring(prev => ({ ...prev, [film]: updated }));
+    await dbSetScore(film, updated);
+    showToast(`${film} marked Released and data applied`);
   }
 
   const scoringWithMeta = { ...scoring, ...(scoring["_meta"] || {}) };
@@ -416,7 +460,7 @@ export default function App() {
         {tab === "draft board"  && <DraftBoard draft={draft} players={players} movies={movies} canEdit={canEdit} isCommissioner={isCommissioner} marxistMode={marxistMode} updateDraftPick={updateDraftPick} requireAuth={requireAuth} scoring={scoringWithMeta} goToFilmScoring={goToFilmScoring} t={t} focusPlayer={draftFocusPlayer} addMovie={addMovie} irSlots={irSlots} placeOnIR={placeOnIR} removeFromIR={removeFromIR} />}
         {tab === "scoring"      && <Scoring scoring={scoringWithMeta} movies={movies} canEdit={canEdit} isCommissioner={isCommissioner} requireAuth={requireAuth} updateScoring={updateScoring} updateScoringMulti={updateScoringMulti} updateScoringRoot={updateScoringRoot} updateOscarField={updateOscarField} updateMovieName={updateMovieName} scoringFilm={scoringFilm} setScoringFilm={setScoringFilm} showToast={showToast} t={t} />}
         {tab === "settings"     && <Settings movies={movies} players={players} canEdit={canEdit} myPlayerName={myPlayerName} marxistMode={marxistMode} updateMovieName={updateMovieName} addMovie={addMovie} renamePlayer={renamePlayer} t={t} showToast={showToast} requireAuth={requireAuth} isCommissioner={isCommissioner} searchTMDB={searchTMDB} scoring={scoringWithMeta} />}
-        {tab === "commissioner" && isCommissioner && <CommissionerSettings leagueName={leagueName} updateLeagueName={updateLeagueName} marxistMode={marxistMode} toggleMarxistMode={toggleMarxistMode} leagueUsers={leagueUsers} players={players} assignPlayer={assignPlayer} t={t} showToast={showToast} movies={movies} backfillPosters={backfillPosters} backfillScoring={backfillScoring} scoring={scoringWithMeta} deleteMovie={deleteMovie} draft={draft} />}
+        {tab === "commissioner" && isCommissioner && <CommissionerSettings leagueName={leagueName} updateLeagueName={updateLeagueName} marxistMode={marxistMode} toggleMarxistMode={toggleMarxistMode} leagueUsers={leagueUsers} players={players} assignPlayer={assignPlayer} t={t} showToast={showToast} movies={movies} backfillPosters={backfillPosters} backfillScoring={backfillScoring} scoring={scoringWithMeta} deleteMovie={deleteMovie} draft={draft} applyUnreleasedData={applyUnreleasedData} />}
       </main>
     </div>
   );

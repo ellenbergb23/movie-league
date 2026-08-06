@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { SL, Card } from "./ui";
 
-export function CommissionerSettings({ leagueName, updateLeagueName, marxistMode, toggleMarxistMode, leagueUsers, players, assignPlayer, t, showToast, movies, backfillPosters, backfillScoring, scoring, deleteMovie, draft }) {
+export function CommissionerSettings({ leagueName, updateLeagueName, marxistMode, toggleMarxistMode, leagueUsers, players, assignPlayer, t, showToast, movies, backfillPosters, backfillScoring, scoring, deleteMovie, draft, applyUnreleasedData }) {
   const [editingLeague, setEditingLeague] = useState(false);
   const [leagueVal, setLeagueVal] = useState(leagueName);
   const [copied, setCopied] = useState(false);
@@ -156,6 +156,39 @@ export function CommissionerSettings({ leagueName, updateLeagueName, marxistMode
                         </li>
                       );
                     })}
+                  </ul>
+                </div>
+              );
+            })()}
+            {(() => {
+              // Live filter: drop any film the moment it's no longer marked Unreleased,
+              // even if applied manually elsewhere — no need to re-run the whole fetch.
+              const stillUnreleased = (scoringResults.unreleasedWithData || []).filter(({ film }) => scoring[film]?.released === false);
+              if (stillUnreleased.length === 0) return null;
+              return (
+                <div style={{ marginTop: 12, padding: "10px 12px", background: t.goldBg, border: `0.5px solid ${t.gold}`, borderRadius: 8 }}>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: t.gold, marginBottom: 6 }}>
+                    🎬 Looks released ({stillUnreleased.length} film{stillUnreleased.length !== 1 ? "s" : ""})
+                  </p>
+                  <p style={{ fontSize: 11, color: t.textSub, marginBottom: 8, lineHeight: 1.5 }}>
+                    These films are toggled Unreleased, but box office and/or RT data was found for them. Review below — applying will switch the film to Released and save this data.
+                  </p>
+                  <ul style={{ paddingLeft: 0, margin: 0, listStyle: "none" }}>
+                    {stillUnreleased.map(({ film, candidate }) => (
+                      <li key={film} style={{ fontSize: 12, color: t.text, marginBottom: 6, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                        <span>
+                          {film}
+                          {candidate.boRaw != null && <span style={{ color: t.textMuted, marginLeft: 6 }}>· ${(candidate.boRaw / 1_000_000).toFixed(1)}m</span>}
+                          {candidate.criticsRT && <span style={{ color: t.textMuted, marginLeft: 6 }}>· RT {candidate.criticsRT}</span>}
+                        </span>
+                        <button
+                          onClick={() => applyUnreleasedData(film, candidate)}
+                          style={{ fontSize: 11, color: "#fff", background: t.gold, border: "none", borderRadius: 6, cursor: "pointer", padding: "4px 10px", fontWeight: 600, flexShrink: 0 }}
+                        >
+                          Mark released & apply
+                        </button>
+                      </li>
+                    ))}
                   </ul>
                 </div>
               );

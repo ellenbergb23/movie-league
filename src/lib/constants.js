@@ -43,6 +43,7 @@ export const BO_TIERS = [
   { label: "$600m",  pts: 14 }, { label: "$500m",  pts: 12 },
   { label: "$400m",  pts:  8 }, { label: "$300m",  pts:  6 },
   { label: "$200m",  pts:  4 }, { label: "$100m",  pts:  2 },
+  { label: "Under $100m", pts: 0 },
 ];
 
 export const RT_OPTIONS     = ["", "90%+ (7pts)", "Fresh 60-89% (2pts)", "Rotten (0pts)"];

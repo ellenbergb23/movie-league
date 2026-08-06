@@ -19,6 +19,7 @@ export function revenueToBoxOfficeTier(revenue) {
 }
 
 function parseTierValue(label) {
+  if (label.startsWith("Under")) return 0;
   const match = label.match(/[\d.]+/);
   if (!match) return 0;
   const value = parseFloat(match[0]);

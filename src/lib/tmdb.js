@@ -87,10 +87,11 @@ export async function getTMDBBoxOffice(title, year = null) {
       // Fall back to exact title match regardless of year
       best = results.find(r => r.title.trim().toLowerCase() === title.trim().toLowerCase());
     }
-    if (!best && year) {
-      best = results.find(r => r.release_date.startsWith(year));
+    if (!best) {
+      // No genuine title match at all (e.g. the league's saved title doesn't exactly match
+      // the real film's title) — report not-found rather than guessing with an unrelated film.
+      return null;
     }
-    if (!best) best = results[0];
     if (!best || !best.id) return null;
     const details = await getTMDBDetails(best.id);
     const releaseYear = details?.releaseDate ? details.releaseDate.slice(0, 4) : null;

@@ -64,6 +64,20 @@ export function Scoring({ scoring, movies, canEdit, isCommissioner, requireAuth,
               ) : (
                 <span style={{ fontSize: 16, fontWeight: 600, color: t.textMuted, fontStyle: "italic" }}>Unreleased</span>
               )}
+              {isCommissioner && (() => {
+                const isReleased = fs.released !== false;
+                return (
+                  <button
+                    onClick={() => updateScoring(film, "released", !isReleased)}
+                    style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: isReleased ? t.textMuted : "#FF8A65", background: "none", border: `0.5px solid ${isReleased ? t.border : "#E65100"}`, borderRadius: 5, cursor: "pointer", padding: "3px 8px", fontWeight: 500 }}
+                  >
+                    <span style={{ width: 26, height: 14, borderRadius: 7, background: isReleased ? t.gold : "#4A3520", position: "relative", display: "inline-block", transition: "background 0.15s" }}>
+                      <span style={{ position: "absolute", top: 2, left: isReleased ? 14 : 2, width: 10, height: 10, borderRadius: 5, background: "#fff", transition: "left 0.15s" }} />
+                    </span>
+                    {isReleased ? "Released" : "Unreleased"}
+                  </button>
+                );
+              })()}
               {status.winner && <span style={{ fontSize: 11, background: t.gold, color: "#fff", padding: "3px 9px", borderRadius: 5, fontWeight: 700 }}>BEST PICTURE ✦</span>}
               {status.nominated && !status.winner && <span style={{ fontSize: 11, background: t.goldBg, color: t.gold, padding: "3px 9px", borderRadius: 5, border: `0.5px solid ${t.gold}`, fontWeight: 600 }}>BP NOM</span>}
               {(canEdit || isCommissioner) && !renaming && <button onClick={() => withAuth(() => { setRenaming(true); setRenameVal(film); })} style={{ fontSize: 11, color: t.textMuted, background: "none", border: `0.5px solid ${t.border}`, borderRadius: 5, cursor: "pointer", padding: "3px 8px" }}>rename</button>}

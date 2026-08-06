@@ -232,6 +232,12 @@ export default function App() {
       const film = movies[i];
       if (onProgress) onProgress(i + 1, movies.length, film);
       const currentScoring = scoring[film] || {};
+      // Skip films explicitly marked unreleased by commissioner
+      if (currentScoring.released === false) {
+        boSkipped++;
+        rtSkipped++;
+        continue;
+      }
       const hasBO = !!currentScoring.bo;
       const hasRT = !!currentScoring.criticsRT || !!currentScoring.audienceRT;
 
@@ -255,15 +261,12 @@ export default function App() {
             boTooEarly.push(film);
           } else {
             const boTier = revenueToBoxOfficeTier(revenue);
-            if (boTier) {
-              const updatedData = { ...currentScoring, bo: boTier, boRaw: revenue, tmdbId: resolvedTmdbId, releaseYear: resolvedReleaseYear };
-              setScoring(prev => ({ ...prev, [film]: updatedData }));
-              await dbSetScore(film, updatedData);
-              boUpdated++;
-              resolvedHasBoxOffice = true;
-            } else {
-              boNotFound.push(film);
-            }
+            const updatedFields = { ...currentScoring, boRaw: revenue, tmdbId: resolvedTmdbId, releaseYear: resolvedReleaseYear };
+            if (boTier) updatedFields.bo = boTier;
+            setScoring(prev => ({ ...prev, [film]: updatedFields }));
+            await dbSetScore(film, updatedFields);
+            boUpdated++;
+            resolvedHasBoxOffice = true;
           }
         } else {
           if (resolvedTmdbId || resolvedReleaseYear) {

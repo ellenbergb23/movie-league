@@ -2,7 +2,7 @@ import { supabase, LEAGUE_ID } from "./supabase";
 import { DEFAULT_PLAYERS } from "./constants";
 
 export async function dbGet(key) {
-  const { data } = await supabase.from("settings").select("value").eq("league_id", LEAGUE_ID).eq("key", key).single();
+  const { data } = await supabase.from("settings").select("value").eq("league_id", LEAGUE_ID).eq("key", key).maybeSingle();
   return data?.value;
 }
 export async function dbSet(key, value) {

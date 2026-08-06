@@ -45,8 +45,13 @@ export async function getOMDbData(title, year = null) {
     const variants = getTitleVariants(title);
     for (const variant of variants) {
       const result = await fetchOMDb(variant, yearParam);
-      if (result) return result;
+      if (result) {
+        const rtRating = (result.Ratings || []).find(r => r.Source === "Rotten Tomatoes");
+        console.log(`[OMDb] ✓ "${variant}" (y=${year || "any"}) → found "${result.Title}" (${result.Year}) | RT: ${rtRating ? rtRating.Value : "none"}`);
+        return result;
+      }
     }
+    console.log(`[OMDb] ✗ "${title}" (y=${year || "any"}) → no match for variants: ${variants.join(", ")}`);
     return null;
   } catch (e) {
     console.error("OMDb fetch failed:", e);

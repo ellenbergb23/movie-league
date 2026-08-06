@@ -151,12 +151,9 @@ export function DraftBoard({ draft, players, movies, canEdit, isCommissioner, op
                             : <span style={{ color: t.textMuted, fontWeight: 400 }}>TBD</span>
                         }
                       </div>
-                      {displayFilm && displayFilm === replacementFilm && (
-                        <div style={{ fontSize: 8, color: t.gold, fontWeight: 700, textAlign: "center", marginBottom: 4, letterSpacing: "0.04em" }}>(replacement)</div>
-                      )}
                       {displayFilm ? (
                         <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "center" }}>
-                          <Poster film={displayFilm} scoring={scoring} size="small" t={t} />
+                          <Poster film={displayFilm} scoring={scoring} size="small" t={t} badge={displayFilm === replacementFilm ? "REPLACEMENT" : null} />
                           {score !== null && (
                             <div style={{ width: "100%", textAlign: "center" }}>
                               {isFilmReleased(displayFilm, scoring) ? (

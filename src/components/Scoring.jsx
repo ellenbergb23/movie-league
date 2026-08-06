@@ -10,12 +10,14 @@ function formatRevenue(revenue) {
   return `$${revenue.toLocaleString()}`;
 }
 
-export function Scoring({ scoring, movies, canEdit, isCommissioner, requireAuth, updateScoring, updateScoringMulti, updateScoringRoot, updateOscarField, updateMovieName, scoringFilm, setScoringFilm, showToast, t }) {
+export function Scoring({ scoring, movies, canEdit, isCommissioner, requireAuth, updateScoring, updateScoringMulti, updateScoringRoot, updateOscarField, updateMovieName, scoringFilm, setScoringFilm, showToast, fetchFilmScoring, t }) {
   const [film, setFilm] = useState(scoringFilm || movies[0]);
   const [renaming, setRenaming] = useState(false);
   const [renameVal, setRenameVal] = useState("");
   const [filmSearch, setFilmSearch] = useState(film || "");
   const [filmSearchOpen, setFilmSearchOpen] = useState(false);
+  const [overrideManualFilm, setOverrideManualFilm] = useState(false); // false = Fill Auto Scores Only, true = Override Manual Scores
+  const [fetchingMode, setFetchingMode] = useState(null); // "bo" | "rt" | "all" | null
   useEffect(() => { if (scoringFilm) { setFilm(scoringFilm); setFilmSearch(scoringFilm); } }, [scoringFilm]);
   useEffect(() => { window.scrollTo(0, 0); }, [film]);
 
@@ -29,6 +31,12 @@ export function Scoring({ scoring, movies, canEdit, isCommissioner, requireAuth,
   function withAuth(fn) { if (canEdit) fn(); else requireAuth(fn); }
   function set(field, val) { withAuth(() => updateScoring(film, field, val)); }
   function selectFilm(m) { setFilm(m); setScoringFilm(m); setFilmSearch(m); setFilmSearchOpen(false); setRenaming(false); }
+
+  async function runFilmFetch(mode) {
+    setFetchingMode(mode);
+    await fetchFilmScoring(film, mode, overrideManualFilm);
+    setFetchingMode(null);
+  }
 
   const sel = { width: "100%", fontSize: 13, padding: "8px 10px", borderRadius: 7, border: `0.5px solid ${t.border}`, background: t.selectBg, color: t.text, cursor: canEdit ? "pointer" : "default" };
   const lbl = { fontSize: 11, fontWeight: 600, color: t.textMuted, letterSpacing: "0.08em", textTransform: "uppercase", display: "block", marginBottom: 6 };
@@ -93,6 +101,29 @@ export function Scoring({ scoring, movies, canEdit, isCommissioner, requireAuth,
           </div>
         )}
       </div>
+
+      {isCommissioner && (
+        <Card t={t} style={{ marginBottom: 10 }}>
+          <p style={{ fontSize: 12, fontWeight: 600, color: t.text, marginBottom: 8 }}>Fetch scoring for this film</p>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+            <button onClick={() => runFilmFetch("bo")} disabled={!!fetchingMode} style={{ fontSize: 12, padding: "7px 12px", borderRadius: 8, border: `1.5px solid ${t.gold}`, background: "transparent", color: t.gold, cursor: fetchingMode ? "default" : "pointer", fontWeight: 600, whiteSpace: "nowrap", opacity: fetchingMode ? 0.5 : 1 }}>
+              {fetchingMode === "bo" ? "Fetching…" : "Fetch Box Office"}
+            </button>
+            <button onClick={() => runFilmFetch("rt")} disabled={!!fetchingMode} style={{ fontSize: 12, padding: "7px 12px", borderRadius: 8, border: `1.5px solid ${t.gold}`, background: "transparent", color: t.gold, cursor: fetchingMode ? "default" : "pointer", fontWeight: 600, whiteSpace: "nowrap", opacity: fetchingMode ? 0.5 : 1 }}>
+              {fetchingMode === "rt" ? "Fetching…" : "Fetch Rotten Tomatoes"}
+            </button>
+            <button onClick={() => runFilmFetch("all")} disabled={!!fetchingMode} style={{ fontSize: 13, padding: "8px 16px", borderRadius: 8, border: `1.5px solid ${t.gold}`, background: fetchingMode ? "transparent" : t.gold, color: fetchingMode ? t.gold : "#fff", cursor: fetchingMode ? "default" : "pointer", fontWeight: 600, whiteSpace: "nowrap", opacity: fetchingMode ? 0.7 : 1 }}>
+              {fetchingMode === "all" ? "Fetching…" : "Fetch All Scoring"}
+            </button>
+          </div>
+          <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: t.textSub, cursor: "pointer" }}>
+            <input type="checkbox" checked={overrideManualFilm} onChange={e => setOverrideManualFilm(e.target.checked)} />
+            {overrideManualFilm
+              ? "Override Manual Scores — fetch always wins, even over existing values"
+              : "Fill Auto Scores Only — only fills missing box office/RT, never touches existing values"}
+          </label>
+        </Card>
+      )}
 
       {!canEdit && <Card t={t} style={{ marginBottom: 10, fontSize: 13, color: t.textSub, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <span>Log in to edit scores</span>

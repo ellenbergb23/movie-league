@@ -231,13 +231,79 @@ export default function App() {
     return { updated, skipped, notFound };
   }
 
-  async function backfillScoring(onProgress, forceRecheck = false, mode = "all") {
+  // BO_MIN_REVENUE: below this, a film's box office is treated as "too early" rather than final.
+  const BO_MIN_REVENUE = 5_000_000;
+
+  // Fetches box office for a single film. overrideManual=false ("Fill Auto Scores Only") skips any film
+  // that already has a bo value; overrideManual=true ("Override Manual Scores") always fetches and wins.
+  async function fetchBoxOfficeForFilm(film, currentScoring, overrideManual) {
+    const hasBO = !!currentScoring.bo;
+    const tmdbResult = await getTMDBBoxOffice(film);
+    const revenue = tmdbResult?.revenue;
+    const resolvedTmdbId = tmdbResult?.tmdbId || currentScoring.tmdbId || null;
+    const resolvedReleaseYear = tmdbResult?.releaseYear || currentScoring.releaseYear || null;
+
+    if (!overrideManual && hasBO) {
+      return { status: "skipped", resolvedTmdbId, resolvedReleaseYear };
+    }
+    if (revenue && isValidRevenue(revenue)) {
+      if (revenue < BO_MIN_REVENUE) {
+        return { status: "too-early", resolvedTmdbId, resolvedReleaseYear };
+      }
+      const boTier = revenueToBoxOfficeTier(revenue);
+      const fields = { boRaw: revenue, tmdbId: resolvedTmdbId, releaseYear: resolvedReleaseYear };
+      if (boTier) fields.bo = boTier;
+      return { status: "updated", fields, resolvedTmdbId, resolvedReleaseYear };
+    }
+    const fields = (resolvedTmdbId || resolvedReleaseYear) ? { tmdbId: resolvedTmdbId, releaseYear: resolvedReleaseYear } : null;
+    return { status: "not-found", fields, resolvedTmdbId, resolvedReleaseYear };
+  }
+
+  // Fetches RT scores for a single film. Same Fill/Override semantics as box office above.
+  async function fetchRTForFilm(film, currentScoring, overrideManual, resolvedTmdbId, resolvedReleaseYear, resolvedHasBoxOffice) {
+    const hasRT = !!currentScoring.criticsRT || !!currentScoring.audienceRT;
+    if (!overrideManual && hasRT) {
+      return { status: "skipped" };
+    }
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    let wideReleaseDate = null;
+    if (resolvedTmdbId) {
+      const wideDateStr = await getTMDBWideReleaseDate(resolvedTmdbId);
+      if (wideDateStr) {
+        wideReleaseDate = new Date(wideDateStr);
+        wideReleaseDate.setHours(0, 0, 0, 0);
+      }
+    }
+    if (wideReleaseDate && wideReleaseDate > today) return { status: "too-early" };
+    if (!wideReleaseDate && !resolvedHasBoxOffice) return { status: "too-early" };
+
+    let omdbData = null;
+    if (resolvedReleaseYear) {
+      const year = parseInt(resolvedReleaseYear);
+      omdbData = await getOMDbData(film, String(year));
+      if (!omdbData) omdbData = await getOMDbData(film, String(year - 1));
+      if (!omdbData) omdbData = await getOMDbData(film, String(year + 1));
+    } else {
+      omdbData = await getOMDbData(film);
+    }
+    if (omdbData) {
+      const rtScores = extractRTScores(omdbData);
+      if (rtScores.criticsRT || rtScores.audienceRT) {
+        return { status: "updated", fields: rtScores };
+      }
+    }
+    return { status: "not-found" };
+  }
+
+  // overrideManual: false = "Fill Auto Scores Only" (only fills missing values, never touches existing ones);
+  // true = "Override Manual Scores" (fetch always wins).
+  async function backfillScoring(onProgress, overrideManual = false, mode = "all") {
     let boUpdated = 0, boSkipped = 0;
     let rtUpdated = 0, rtSkipped = 0;
     const boNotFound = [], rtNotFound = [];
     const boTooEarly = [], rtTooEarly = [];
     const unreleasedWithData = []; // films toggled Unreleased that now have data suggesting otherwise
-    const BO_MIN_REVENUE = 5_000_000;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -247,7 +313,6 @@ export default function App() {
       const currentScoring = scoring[film] || {};
       const manuallyUnreleased = currentScoring.released === false;
       const hasBO = !!currentScoring.bo;
-      const hasRT = !!currentScoring.criticsRT || !!currentScoring.audienceRT;
 
       // Capture in local vars — setScoring is batched and won't update state mid-loop
       let resolvedTmdbId = currentScoring.tmdbId || null;
@@ -257,7 +322,6 @@ export default function App() {
 
       // --- Box office (always fetched — even for manually-unreleased films, to check for a review prompt) ---
       {
-        const boProtected = !!currentScoring.boManual && !!currentScoring.bo; // manually-typed value — don't overwrite unless it's actually missing
         const tmdbResult = await getTMDBBoxOffice(film);
         const revenue = tmdbResult?.revenue;
 
@@ -266,7 +330,7 @@ export default function App() {
 
         if (manuallyUnreleased) {
           console.log(`[Unreleased-check] "${film}" → TMDB match: ${tmdbResult?.tmdbId ? `id ${tmdbResult.tmdbId}` : "none found"} | revenue: ${revenue ?? "none"} | year: ${resolvedReleaseYear ?? "none"}`);
-          if (!boProtected && revenue && isValidRevenue(revenue) && revenue >= BO_MIN_REVENUE) {
+          if ((overrideManual || !hasBO) && revenue && isValidRevenue(revenue) && revenue >= BO_MIN_REVENUE) {
             candidate.boRaw = revenue;
             candidate.bo = revenueToBoxOfficeTier(revenue);
             candidate.tmdbId = resolvedTmdbId;
@@ -275,7 +339,7 @@ export default function App() {
           }
         } else if (mode === "rt") {
           // Box office fetch skipped by mode — still resolved tmdbId/releaseYear above for RT's wide-release-date check.
-        } else if (boProtected) {
+        } else if (!overrideManual && hasBO) {
           boSkipped++;
         } else if (revenue && isValidRevenue(revenue)) {
           if (revenue < BO_MIN_REVENUE) {
@@ -337,9 +401,10 @@ export default function App() {
         continue;
       }
 
+      const hasRT = !!currentScoring.criticsRT || !!currentScoring.audienceRT;
       if (mode === "bo") {
         // RT fetch skipped by mode entirely for normal (non-manually-unreleased) films.
-      } else if (!forceRecheck && hasRT) {
+      } else if (!overrideManual && hasRT) {
         rtSkipped++;
       } else {
         let wideReleaseDate = null;
@@ -396,6 +461,61 @@ export default function App() {
     const summary = summaryLines.join(" | ");
     showToast(summary || "No updates");
     return { boUpdated, boSkipped, boNotFound, rtUpdated, rtSkipped, rtNotFound, boTooEarly, rtTooEarly, unreleasedWithData };
+  }
+
+  // Per-film fetch for the Scoring page (commissioner-only). mode: "bo" | "rt" | "all".
+  // overrideManual: false = "Fill Auto Scores Only", true = "Override Manual Scores" — same choice as bulk fetch.
+  async function fetchFilmScoring(film, mode = "all", overrideManual = false) {
+    const currentScoring = scoring[film] || {};
+    if (currentScoring.released === false) {
+      showToast(`"${film}" is marked Unreleased — use the Commissioner tab bulk fetch to review it`);
+      return;
+    }
+
+    let updatedFields = {};
+    let resolvedTmdbId = currentScoring.tmdbId || null;
+    let resolvedReleaseYear = currentScoring.releaseYear || null;
+    let resolvedHasBoxOffice = !!currentScoring.bo;
+    const messages = [];
+
+    if (mode === "bo" || mode === "all") {
+      const boResult = await fetchBoxOfficeForFilm(film, currentScoring, overrideManual);
+      resolvedTmdbId = boResult.resolvedTmdbId ?? resolvedTmdbId;
+      resolvedReleaseYear = boResult.resolvedReleaseYear ?? resolvedReleaseYear;
+      if (boResult.status === "updated") {
+        Object.assign(updatedFields, boResult.fields);
+        resolvedHasBoxOffice = true;
+        messages.push("box office updated");
+      } else if (boResult.status === "skipped") {
+        messages.push("box office already set — skipped");
+      } else if (boResult.status === "too-early") {
+        messages.push("box office too early (under $5M)");
+      } else {
+        if (boResult.fields) Object.assign(updatedFields, boResult.fields);
+        messages.push("no box office data found");
+      }
+    }
+
+    if (mode === "rt" || mode === "all") {
+      const rtResult = await fetchRTForFilm(film, currentScoring, overrideManual, resolvedTmdbId, resolvedReleaseYear, resolvedHasBoxOffice);
+      if (rtResult.status === "updated") {
+        Object.assign(updatedFields, rtResult.fields);
+        messages.push("RT scores updated");
+      } else if (rtResult.status === "skipped") {
+        messages.push("RT already set — skipped");
+      } else if (rtResult.status === "too-early") {
+        messages.push("RT too early — not yet released");
+      } else {
+        messages.push("no RT data found");
+      }
+    }
+
+    if (Object.keys(updatedFields).length > 0) {
+      const merged = { ...(scoring[film] || {}), ...updatedFields };
+      setScoring(prev => ({ ...prev, [film]: merged }));
+      await dbSetScore(film, merged);
+    }
+    showToast(`"${film}": ${messages.join(", ")}`);
   }
 
   async function applyUnreleasedData(film, candidate) {
@@ -483,7 +603,7 @@ export default function App() {
       <main style={{ maxWidth: 880, margin: "0 auto", padding: "1.5rem" }}>
         {tab === "leaderboard"  && <Leaderboard rankedPlayers={rankedPlayers} getPlayerTotal={getPlayerTotal} draft={draft} scoring={scoringWithMeta} t={t} goToPlayerDraft={goToPlayerDraft} irSlots={irSlots} />}
         {tab === "draft board"  && <DraftBoard draft={draft} players={players} movies={movies} canEdit={canEdit} isCommissioner={isCommissioner} openScoringMode={openScoringMode} updateDraftPick={updateDraftPick} requireAuth={requireAuth} scoring={scoringWithMeta} goToFilmScoring={goToFilmScoring} t={t} focusPlayer={draftFocusPlayer} addMovie={addMovie} irSlots={irSlots} placeOnIR={placeOnIR} removeFromIR={removeFromIR} replacements={replacements} />}
-        {tab === "scoring"      && <Scoring scoring={scoringWithMeta} movies={movies} canEdit={canEdit} isCommissioner={isCommissioner} requireAuth={requireAuth} updateScoring={updateScoring} updateScoringMulti={updateScoringMulti} updateScoringRoot={updateScoringRoot} updateOscarField={updateOscarField} updateMovieName={updateMovieName} scoringFilm={scoringFilm} setScoringFilm={setScoringFilm} showToast={showToast} t={t} />}
+        {tab === "scoring"      && <Scoring scoring={scoringWithMeta} movies={movies} canEdit={canEdit} isCommissioner={isCommissioner} requireAuth={requireAuth} updateScoring={updateScoring} updateScoringMulti={updateScoringMulti} updateScoringRoot={updateScoringRoot} updateOscarField={updateOscarField} updateMovieName={updateMovieName} scoringFilm={scoringFilm} setScoringFilm={setScoringFilm} showToast={showToast} fetchFilmScoring={fetchFilmScoring} t={t} />}
         {tab === "settings"     && <Settings movies={movies} players={players} canEdit={canEdit} myPlayerName={myPlayerName} openScoringMode={openScoringMode} updateMovieName={updateMovieName} addMovie={addMovie} renamePlayer={renamePlayer} t={t} showToast={showToast} requireAuth={requireAuth} isCommissioner={isCommissioner} searchTMDB={searchTMDB} scoring={scoringWithMeta} />}
         {tab === "commissioner" && isCommissioner && <CommissionerSettings leagueName={leagueName} updateLeagueName={updateLeagueName} openScoringMode={openScoringMode} toggleOpenScoringMode={toggleOpenScoringMode} leagueUsers={leagueUsers} players={players} assignPlayer={assignPlayer} t={t} showToast={showToast} movies={movies} backfillPosters={backfillPosters} backfillScoring={backfillScoring} scoring={scoringWithMeta} deleteMovie={deleteMovie} draft={draft} applyUnreleasedData={applyUnreleasedData} />}
       </main>

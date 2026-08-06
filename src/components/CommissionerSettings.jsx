@@ -13,7 +13,7 @@ export function CommissionerSettings({ leagueName, updateLeagueName, openScoring
   const [scoringProgress, setScoringProgress] = useState(null);
   const [scoringRunning, setScoringRunning] = useState(false);
   const [scoringResults, setScoringResults] = useState(null);
-  const [forceRecheckScoring, setForceRecheckScoring] = useState(false);
+  const [overrideManualScoring, setOverrideManualScoring] = useState(false); // false = Fill Auto Scores Only, true = Override Manual Scores
   const [dismissedUnreleased, setDismissedUnreleased] = useState([]); // films clicked "Remain unreleased" — cleared on next fetch
   const [lastScoringMode, setLastScoringMode] = useState("all");
   const [looksReleasedOpen, setLooksReleasedOpen] = useState(true);
@@ -34,7 +34,7 @@ export function CommissionerSettings({ leagueName, updateLeagueName, openScoring
     setScoringResults(null);
     setDismissedUnreleased([]);
     setLastScoringMode(mode);
-    const results = await backfillScoring((current, total, film) => setScoringProgress({ current, total, film }), forceRecheckScoring, mode);
+    const results = await backfillScoring((current, total, film) => setScoringProgress({ current, total, film }), overrideManualScoring, mode);
     setScoringRunning(false);
     setScoringProgress(null);
     setScoringResults(results);
@@ -162,8 +162,10 @@ export function CommissionerSettings({ leagueName, updateLeagueName, openScoring
           </div>
         </div>
         <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 10, fontSize: 12, color: t.textSub, cursor: "pointer" }}>
-          <input type="checkbox" checked={forceRecheckScoring} onChange={e => setForceRecheckScoring(e.target.checked)} />
-          Re-check films that already have scores
+          <input type="checkbox" checked={overrideManualScoring} onChange={e => setOverrideManualScoring(e.target.checked)} />
+          {overrideManualScoring
+            ? "Override Manual Scores — fetch always wins, even over existing values"
+            : "Fill Auto Scores Only — only fills missing box office/RT, never touches existing values"}
         </label>
         {scoringResults && (
           <div style={{ marginTop: 14, paddingTop: 14, borderTop: `0.5px solid ${t.border}` }}>

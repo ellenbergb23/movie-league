@@ -252,6 +252,7 @@ export default function App() {
         if (tmdbResult?.releaseYear) resolvedReleaseYear = tmdbResult.releaseYear;
 
         if (manuallyUnreleased) {
+          console.log(`[Unreleased-check] "${film}" → TMDB match: ${tmdbResult?.tmdbId ? `id ${tmdbResult.tmdbId}` : "none found"} | revenue: ${revenue ?? "none"} | year: ${resolvedReleaseYear ?? "none"}`);
           if (revenue && isValidRevenue(revenue) && revenue >= BO_MIN_REVENUE) {
             candidate.boRaw = revenue;
             candidate.bo = revenueToBoxOfficeTier(revenue);
@@ -307,7 +308,12 @@ export default function App() {
             if (rtScores.criticsRT || rtScores.audienceRT) Object.assign(candidate, rtScores);
           }
         }
-        if (Object.keys(candidate).length > 0) unreleasedWithData.push({ film, candidate });
+        if (Object.keys(candidate).length > 0) {
+          console.log(`[Unreleased-check] "${film}" → flagged for review:`, candidate);
+          unreleasedWithData.push({ film, candidate });
+        } else {
+          console.log(`[Unreleased-check] "${film}" → no qualifying data found (still treated as unreleased)`);
+        }
         boSkipped++;
         rtSkipped++;
         await new Promise(r => setTimeout(r, 350));

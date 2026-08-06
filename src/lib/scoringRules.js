@@ -18,8 +18,17 @@ const DEFAULT_BO_TIERS = [
   { millions: 2800, pts: 58 }, { millions: 2900, pts: 62 }, { millions: 3000, pts: 68 },
 ];
 
+export const LEAGUE_MODES = [
+  { id: "classic", label: "Classic" },
+  { id: "boxOfficeOnly", label: "Box Office Only" },
+  { id: "oscars", label: "Oscars Mode" },
+  { id: "custom", label: "Custom" },
+];
+
 export function defaultScoringRules() {
   return {
+    mode: "classic",
+    boTiersEnabled: true,
     boTiers: DEFAULT_BO_TIERS.map(t => ({ ...t })),
     boBonuses: {
       enabled: true,
@@ -61,6 +70,8 @@ export function normalizeRules(saved) {
   const d = defaultScoringRules();
   if (!saved) return d;
   return {
+    mode: saved.mode || d.mode,
+    boTiersEnabled: saved.boTiersEnabled ?? d.boTiersEnabled,
     boTiers: Array.isArray(saved.boTiers) && saved.boTiers.length ? saved.boTiers : d.boTiers,
     boBonuses: { ...d.boBonuses, ...(saved.boBonuses || {}) },
     openingWeekendBonus: { ...d.openingWeekendBonus, ...(saved.openingWeekendBonus || {}) },
@@ -78,6 +89,45 @@ export function normalizeRules(saved) {
       ? saved.oscarCategories
       : d.oscarCategories,
   };
+}
+
+// Applies a mode preset to an existing rules draft, toggling section on/off flags only —
+// existing point values/breakpoints are left untouched so a commissioner's custom numbers
+// survive a mode switch. "custom" just tags the draft as custom without changing any flags.
+export function applyLeagueMode(rules, modeId) {
+  const next = cloneRules(rules);
+  next.mode = modeId;
+  if (modeId === "custom") return next;
+
+  const allOscarsOn = modeId === "oscars";
+  next.oscarCategories = next.oscarCategories.map(c => ({ ...c, enabled: allOscarsOn }));
+
+  if (modeId === "classic") {
+    next.boTiersEnabled = true;
+    next.boBonuses.enabled = true;
+    next.openingWeekendBonus.enabled = true;
+    next.weeksNumber1Bonus.enabled = true;
+    next.seenFilm.enabled = true;
+    next.critics.enabled = true;
+    next.audience.enabled = true;
+  } else if (modeId === "boxOfficeOnly") {
+    next.boTiersEnabled = true;
+    next.boBonuses.enabled = true;
+    next.openingWeekendBonus.enabled = true;
+    next.weeksNumber1Bonus.enabled = true;
+    next.seenFilm.enabled = true;
+    next.critics.enabled = false;
+    next.audience.enabled = false;
+  } else if (modeId === "oscars") {
+    next.boTiersEnabled = false;
+    next.boBonuses.enabled = false;
+    next.openingWeekendBonus.enabled = false;
+    next.weeksNumber1Bonus.enabled = false;
+    next.seenFilm.enabled = true;
+    next.critics.enabled = false;
+    next.audience.enabled = false;
+  }
+  return next;
 }
 
 export function formatBOLabel(millions) {

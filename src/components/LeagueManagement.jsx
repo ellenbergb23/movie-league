@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import { SL, Card } from "./ui";
-import { cloneRules, rulesEqual } from "../lib/scoringRules";
+import { cloneRules, rulesEqual, LEAGUE_MODES, applyLeagueMode } from "../lib/scoringRules";
 
 export function LeagueManagement({ rules, updateScoringRules, onDirtyChange, t, showToast }) {
   const [draft, setDraft] = useState(() => cloneRules(rules));
+  const [pendingMode, setPendingMode] = useState(null); // mode id awaiting confirm
 
   const dirty = !rulesEqual(draft, rules);
   useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
@@ -16,15 +17,28 @@ export function LeagueManagement({ rules, updateScoringRules, onDirtyChange, t, 
     showToast("Changes discarded");
   }
 
+  // Any manual edit while a preset mode is active silently switches the mode tag to
+  // Custom (per product decision) — it does not touch any other values.
   function setField(path, value) {
     setDraft(d => {
       const next = cloneRules(d);
       let obj = next;
       for (let i = 0; i < path.length - 1; i++) obj = obj[path[i]];
       obj[path[path.length - 1]] = value;
+      if (next.mode !== "custom") next.mode = "custom";
       return next;
     });
   }
+
+  function requestModeSwitch(modeId) {
+    if (modeId === draft.mode) return;
+    setPendingMode(modeId);
+  }
+  function confirmModeSwitch() {
+    setDraft(d => applyLeagueMode(d, pendingMode));
+    setPendingMode(null);
+  }
+  function cancelModeSwitch() { setPendingMode(null); }
 
   const inp = { fontSize: 13, padding: "6px 9px", borderRadius: 7, border: `0.5px solid ${t.borderStrong}`, background: t.surface2, color: t.text, width: "100%", boxSizing: "border-box" };
   const numInp = { ...inp, fontFamily: "monospace" };
@@ -61,21 +75,68 @@ export function LeagueManagement({ rules, updateScoringRules, onDirtyChange, t, 
         </div>
       )}
 
+      {/* League mode */}
+      <SL t={t}>league mode</SL>
+      <Card t={t} style={{ marginBottom: 20 }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {LEAGUE_MODES.map(m => {
+            const active = draft.mode === m.id;
+            return (
+              <button
+                key={m.id}
+                onClick={() => requestModeSwitch(m.id)}
+                style={{
+                  fontSize: 12, fontWeight: 600, padding: "7px 14px", borderRadius: 8, cursor: "pointer",
+                  border: `0.5px solid ${active ? t.gold : t.border}`,
+                  background: active ? t.goldBg : "transparent",
+                  color: active ? t.gold : t.textSub,
+                }}
+              >
+                {m.label}
+              </button>
+            );
+          })}
+        </div>
+        <p style={{ fontSize: 11, color: t.textMuted, marginTop: 10, marginBottom: 0 }}>
+          Switching modes sets which scoring categories are on or off league-wide. Point values you've customized are kept.
+        </p>
+      </Card>
+
+      {pendingMode && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ background: t.surface, border: `0.5px solid ${t.borderStrong}`, borderRadius: 12, padding: 20, maxWidth: 340 }}>
+            <p style={{ fontSize: 14, fontWeight: 700, color: t.text, marginBottom: 8 }}>Switch to {LEAGUE_MODES.find(m => m.id === pendingMode)?.label}?</p>
+            <p style={{ fontSize: 12, color: t.textMuted, marginBottom: 16 }}>This overhauls which scoring categories are enabled for the league. You'll still need to click Apply Changes to save it.</p>
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button onClick={cancelModeSwitch} style={{ fontSize: 13, padding: "7px 14px", borderRadius: 8, border: `0.5px solid ${t.border}`, background: "transparent", color: t.textSub, cursor: "pointer", fontWeight: 600 }}>Cancel</button>
+              <button onClick={confirmModeSwitch} style={{ fontSize: 13, padding: "7px 14px", borderRadius: 8, border: "none", background: t.gold, color: "#fff", cursor: "pointer", fontWeight: 600 }}>Switch Mode</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Box office tiers */}
       <SL t={t}>box office tiers</SL>
       <Card t={t} style={{ marginBottom: 20 }}>
-        <p style={{ fontSize: 12, color: t.textMuted, marginBottom: 10 }}>Points awarded at each revenue breakpoint (a film earns the highest tier it reaches).</p>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 8, fontSize: 11, color: t.textMuted, marginBottom: 4, fontWeight: 600 }}>
-          <span>Breakpoint ($m)</span><span>Points</span><span></span>
+        <div style={{ marginBottom: 10 }}>
+          <Toggle checked={draft.boTiersEnabled} onChange={v => setField(["boTiersEnabled"], v)} label={draft.boTiersEnabled ? "Enabled" : "Disabled"} />
         </div>
-        {draft.boTiers.map((tier, i) => (
-          <div key={i} style={rowStyle}>
-            <input type="number" style={numInp} value={tier.millions} onChange={e => setField(["boTiers", i, "millions"], parseFloat(e.target.value) || 0)} />
-            <input type="number" style={numInp} value={tier.pts} onChange={e => setField(["boTiers", i, "pts"], parseFloat(e.target.value) || 0)} />
-            <button onClick={() => setDraft(d => { const next = cloneRules(d); next.boTiers.splice(i, 1); return next; })} style={{ fontSize: 11, color: t.red, background: "none", border: `0.5px solid ${t.red}`, borderRadius: 6, cursor: "pointer", padding: "4px 8px" }}>remove</button>
-          </div>
-        ))}
-        <button onClick={() => setDraft(d => { const next = cloneRules(d); next.boTiers.push({ millions: 0, pts: 0 }); return next; })} style={{ marginTop: 10, fontSize: 12, color: t.gold, background: "none", border: `0.5px solid ${t.gold}`, borderRadius: 6, cursor: "pointer", padding: "5px 12px", fontWeight: 600 }}>+ Add tier</button>
+        {draft.boTiersEnabled && (
+          <>
+            <p style={{ fontSize: 12, color: t.textMuted, marginBottom: 10 }}>Points awarded at each revenue breakpoint (a film earns the highest tier it reaches).</p>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 8, fontSize: 11, color: t.textMuted, marginBottom: 4, fontWeight: 600 }}>
+              <span>Breakpoint ($m)</span><span>Points</span><span></span>
+            </div>
+            {draft.boTiers.map((tier, i) => (
+              <div key={i} style={rowStyle}>
+                <input type="number" style={numInp} value={tier.millions} onChange={e => setField(["boTiers", i, "millions"], parseFloat(e.target.value) || 0)} />
+                <input type="number" style={numInp} value={tier.pts} onChange={e => setField(["boTiers", i, "pts"], parseFloat(e.target.value) || 0)} />
+                <button onClick={() => setDraft(d => { const next = cloneRules(d); next.boTiers.splice(i, 1); if (next.mode !== "custom") next.mode = "custom"; return next; })} style={{ fontSize: 11, color: t.red, background: "none", border: `0.5px solid ${t.red}`, borderRadius: 6, cursor: "pointer", padding: "4px 8px" }}>remove</button>
+              </div>
+            ))}
+            <button onClick={() => setDraft(d => { const next = cloneRules(d); next.boTiers.push({ millions: 0, pts: 0 }); if (next.mode !== "custom") next.mode = "custom"; return next; })} style={{ marginTop: 10, fontSize: 12, color: t.gold, background: "none", border: `0.5px solid ${t.gold}`, borderRadius: 6, cursor: "pointer", padding: "5px 12px", fontWeight: 600 }}>+ Add tier</button>
+          </>
+        )}
       </Card>
 
       {/* Box office milestone bonuses */}
@@ -84,14 +145,18 @@ export function LeagueManagement({ rules, updateScoringRules, onDirtyChange, t, 
         <div style={{ marginBottom: 10 }}>
           <Toggle checked={draft.boBonuses.enabled} onChange={v => setField(["boBonuses", "enabled"], v)} label={draft.boBonuses.enabled ? "Enabled" : "Disabled"} />
         </div>
-        {draft.boBonuses.milestones.map((m, i) => (
-          <div key={i} style={rowStyle}>
-            <input type="number" style={numInp} value={m.millions} onChange={e => setField(["boBonuses", "milestones", i, "millions"], parseFloat(e.target.value) || 0)} placeholder="$m" />
-            <input type="number" style={numInp} value={m.pts} onChange={e => setField(["boBonuses", "milestones", i, "pts"], parseFloat(e.target.value) || 0)} placeholder="pts" />
-            <button onClick={() => setDraft(d => { const next = cloneRules(d); next.boBonuses.milestones.splice(i, 1); return next; })} style={{ fontSize: 11, color: t.red, background: "none", border: `0.5px solid ${t.red}`, borderRadius: 6, cursor: "pointer", padding: "4px 8px" }}>remove</button>
-          </div>
-        ))}
-        <button onClick={() => setDraft(d => { const next = cloneRules(d); next.boBonuses.milestones.push({ millions: 0, pts: 0 }); return next; })} style={{ marginTop: 10, fontSize: 12, color: t.gold, background: "none", border: `0.5px solid ${t.gold}`, borderRadius: 6, cursor: "pointer", padding: "5px 12px", fontWeight: 600 }}>+ Add milestone</button>
+        {draft.boBonuses.enabled && (
+          <>
+            {draft.boBonuses.milestones.map((m, i) => (
+              <div key={i} style={rowStyle}>
+                <input type="number" style={numInp} value={m.millions} onChange={e => setField(["boBonuses", "milestones", i, "millions"], parseFloat(e.target.value) || 0)} placeholder="$m" />
+                <input type="number" style={numInp} value={m.pts} onChange={e => setField(["boBonuses", "milestones", i, "pts"], parseFloat(e.target.value) || 0)} placeholder="pts" />
+                <button onClick={() => setDraft(d => { const next = cloneRules(d); next.boBonuses.milestones.splice(i, 1); if (next.mode !== "custom") next.mode = "custom"; return next; })} style={{ fontSize: 11, color: t.red, background: "none", border: `0.5px solid ${t.red}`, borderRadius: 6, cursor: "pointer", padding: "4px 8px" }}>remove</button>
+              </div>
+            ))}
+            <button onClick={() => setDraft(d => { const next = cloneRules(d); next.boBonuses.milestones.push({ millions: 0, pts: 0 }); if (next.mode !== "custom") next.mode = "custom"; return next; })} style={{ marginTop: 10, fontSize: 12, color: t.gold, background: "none", border: `0.5px solid ${t.gold}`, borderRadius: 6, cursor: "pointer", padding: "5px 12px", fontWeight: 600 }}>+ Add milestone</button>
+          </>
+        )}
       </Card>
 
       {/* Opening weekend / weeks #1 */}
@@ -100,12 +165,16 @@ export function LeagueManagement({ rules, updateScoringRules, onDirtyChange, t, 
         <div style={{ ...rowStyle, gridTemplateColumns: undefined }}>
           <span style={{ flex: 1, fontSize: 13, color: t.text }}>Biggest Opening Weekend</span>
           <Toggle checked={draft.openingWeekendBonus.enabled} onChange={v => setField(["openingWeekendBonus", "enabled"], v)} label="On" />
-          <input type="number" style={{ ...numInp, width: 70 }} value={draft.openingWeekendBonus.pts} onChange={e => setField(["openingWeekendBonus", "pts"], parseFloat(e.target.value) || 0)} />
+          {draft.openingWeekendBonus.enabled && (
+            <input type="number" style={{ ...numInp, width: 70 }} value={draft.openingWeekendBonus.pts} onChange={e => setField(["openingWeekendBonus", "pts"], parseFloat(e.target.value) || 0)} />
+          )}
         </div>
         <div style={{ ...rowStyle, borderBottom: "none" }}>
           <span style={{ flex: 1, fontSize: 13, color: t.text }}>Most Weeks at #1</span>
           <Toggle checked={draft.weeksNumber1Bonus.enabled} onChange={v => setField(["weeksNumber1Bonus", "enabled"], v)} label="On" />
-          <input type="number" style={{ ...numInp, width: 70 }} value={draft.weeksNumber1Bonus.pts} onChange={e => setField(["weeksNumber1Bonus", "pts"], parseFloat(e.target.value) || 0)} />
+          {draft.weeksNumber1Bonus.enabled && (
+            <input type="number" style={{ ...numInp, width: 70 }} value={draft.weeksNumber1Bonus.pts} onChange={e => setField(["weeksNumber1Bonus", "pts"], parseFloat(e.target.value) || 0)} />
+          )}
         </div>
       </Card>
 
@@ -115,7 +184,9 @@ export function LeagueManagement({ rules, updateScoringRules, onDirtyChange, t, 
         <div style={{ ...rowStyle, borderBottom: "none" }}>
           <span style={{ flex: 1, fontSize: 13, color: t.text }}>Point for marking a film as seen</span>
           <Toggle checked={draft.seenFilm.enabled} onChange={v => setField(["seenFilm", "enabled"], v)} label="On" />
-          <input type="number" style={{ ...numInp, width: 70 }} value={draft.seenFilm.pts} onChange={e => setField(["seenFilm", "pts"], parseFloat(e.target.value) || 0)} />
+          {draft.seenFilm.enabled && (
+            <input type="number" style={{ ...numInp, width: 70 }} value={draft.seenFilm.pts} onChange={e => setField(["seenFilm", "pts"], parseFloat(e.target.value) || 0)} />
+          )}
         </div>
       </Card>
 
@@ -130,14 +201,18 @@ export function LeagueManagement({ rules, updateScoringRules, onDirtyChange, t, 
                 <span style={{ fontSize: 12, fontWeight: 600, color: t.text, textTransform: "capitalize" }}>{kind}</span>
                 <Toggle checked={draft[kind].enabled} onChange={v => setField([kind, "enabled"], v)} label="On" />
               </div>
-              {draft[kind].breakpoints.map((bp, i) => (
-                <div key={i} style={rowStyle}>
-                  <input type="number" style={numInp} value={bp.min} onChange={e => setField([kind, "breakpoints", i, "min"], parseFloat(e.target.value) || 0)} placeholder="min %" />
-                  <input type="number" style={numInp} value={bp.pts} onChange={e => setField([kind, "breakpoints", i, "pts"], parseFloat(e.target.value) || 0)} placeholder="pts" />
-                  <button onClick={() => setDraft(d => { const next = cloneRules(d); next[kind].breakpoints.splice(i, 1); return next; })} style={{ fontSize: 11, color: t.red, background: "none", border: `0.5px solid ${t.red}`, borderRadius: 6, cursor: "pointer", padding: "4px 8px" }}>x</button>
-                </div>
-              ))}
-              <button onClick={() => setDraft(d => { const next = cloneRules(d); next[kind].breakpoints.push({ min: 0, pts: 0 }); return next; })} style={{ marginTop: 8, fontSize: 11, color: t.gold, background: "none", border: `0.5px solid ${t.gold}`, borderRadius: 6, cursor: "pointer", padding: "4px 10px", fontWeight: 600 }}>+ Add breakpoint</button>
+              {draft[kind].enabled && (
+                <>
+                  {draft[kind].breakpoints.map((bp, i) => (
+                    <div key={i} style={rowStyle}>
+                      <input type="number" style={numInp} value={bp.min} onChange={e => setField([kind, "breakpoints", i, "min"], parseFloat(e.target.value) || 0)} placeholder="min %" />
+                      <input type="number" style={numInp} value={bp.pts} onChange={e => setField([kind, "breakpoints", i, "pts"], parseFloat(e.target.value) || 0)} placeholder="pts" />
+                      <button onClick={() => setDraft(d => { const next = cloneRules(d); next[kind].breakpoints.splice(i, 1); if (next.mode !== "custom") next.mode = "custom"; return next; })} style={{ fontSize: 11, color: t.red, background: "none", border: `0.5px solid ${t.red}`, borderRadius: 6, cursor: "pointer", padding: "4px 8px" }}>x</button>
+                    </div>
+                  ))}
+                  <button onClick={() => setDraft(d => { const next = cloneRules(d); next[kind].breakpoints.push({ min: 0, pts: 0 }); if (next.mode !== "custom") next.mode = "custom"; return next; })} style={{ marginTop: 8, fontSize: 11, color: t.gold, background: "none", border: `0.5px solid ${t.gold}`, borderRadius: 6, cursor: "pointer", padding: "4px 10px", fontWeight: 600 }}>+ Add breakpoint</button>
+                </>
+              )}
             </div>
           ))}
         </div>
@@ -153,8 +228,12 @@ export function LeagueManagement({ rules, updateScoringRules, onDirtyChange, t, 
           <div key={cat.name} style={{ display: "grid", gridTemplateColumns: "1fr auto auto auto", gap: 8, alignItems: "center", padding: "6px 0", borderBottom: i < draft.oscarCategories.length - 1 ? `0.5px solid ${t.border}` : "none" }}>
             <span style={{ fontSize: 12, color: t.text }}>{cat.name}</span>
             <input type="checkbox" checked={cat.enabled !== false} onChange={e => setField(["oscarCategories", i, "enabled"], e.target.checked)} />
-            <input type="number" style={{ ...numInp, width: 60 }} value={cat.nomPts} onChange={e => setField(["oscarCategories", i, "nomPts"], parseFloat(e.target.value) || 0)} />
-            <input type="number" style={{ ...numInp, width: 60 }} value={cat.winPts} onChange={e => setField(["oscarCategories", i, "winPts"], parseFloat(e.target.value) || 0)} />
+            {cat.enabled !== false ? (
+              <>
+                <input type="number" style={{ ...numInp, width: 60 }} value={cat.nomPts} onChange={e => setField(["oscarCategories", i, "nomPts"], parseFloat(e.target.value) || 0)} />
+                <input type="number" style={{ ...numInp, width: 60 }} value={cat.winPts} onChange={e => setField(["oscarCategories", i, "winPts"], parseFloat(e.target.value) || 0)} />
+              </>
+            ) : (<><span /><span /></>)}
           </div>
         ))}
       </Card>

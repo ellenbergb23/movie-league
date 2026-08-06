@@ -16,7 +16,8 @@ export function calcFilmScore(film, scoring, rules = DEFAULT_SCORING_RULES) {
   const fs = scoring[film]; if (!fs) return 0;
 
   const revenueMillions = fs.boRaw != null ? fs.boRaw / 1_000_000 : null;
-  let total = getBOPoints(fs.bo || "", rules) + getBOBonusPoints(revenueMillions, rules.boBonuses);
+  const boTiersOn = rules.boTiersEnabled !== false;
+  let total = boTiersOn ? (getBOPoints(fs.bo || "", rules) + getBOBonusPoints(revenueMillions, rules.boBonuses)) : 0;
 
   // Prefer raw % scores against current breakpoints (keeps scores retroactively accurate
   // when a commissioner edits breakpoints); fall back to legacy stored string tiers.

@@ -63,21 +63,27 @@ export const HISTORICAL = {
   "IRobis":        { "2023": 0,   "2024": 0,   "2025": 113 },
 };
 
+// Editorial "awards show" palette from the premium reskin handoff (oklch source values
+// converted to sRGB hex for broad browser support). Font pairing: Newsreader (serif,
+// display/headings) + Public Sans (UI/body) — loaded in index.html.
+export const FONT_SERIF = "'Newsreader', Georgia, serif";
+export const FONT_SANS = "'Public Sans', -apple-system, BlinkMacSystemFont, sans-serif";
+
 export const THEMES = {
   light: {
-    bg: "#F7F5F0", surface: "#FFFFFF", surface2: "#F0EDE6",
-    border: "#D4CFC4", borderStrong: "#B8B0A0",
-    text: "#1A1714", textSub: "#4A4540", textMuted: "#8C8078",
-    header: "#FFFFFF", navActive: "#1A1714", navInactive: "#8C8078",
-    gold: GOLD, goldBg: "#FBF5E6", selectBg: "#F0EDE6", rowAlt: "#FAF8F5",
+    bg: "#F7F4EE", surface: "#FDFCFA", surface2: "#EEEAE1",
+    border: "#DAD4C6", borderStrong: "#C2B9A5",
+    text: "#302B26", textSub: "#5C554C", textMuted: "#8F877A",
+    header: "#FDFCFA", navActive: "#302B26", navInactive: "#8F877A",
+    gold: "#A6863A", goldBg: "#F3E9D2", selectBg: "#EEEAE1", rowAlt: "#F8F6F1",
     red: "#B71C1C", redBg: "#FFEBEE",
   },
   dark: {
-    bg: "#0A0A0A", surface: "#141414", surface2: "#1E1E1E",
-    border: "#2A2A2A", borderStrong: "#3A3A3A",
-    text: "#F0EDE8", textSub: "#A8A29E", textMuted: "#6B6560",
-    header: "#0F0F0F", navActive: GOLD, navInactive: "#6B6560",
-    gold: GOLD, goldBg: "#1E1A0E", selectBg: "#1E1E1E", rowAlt: "#161616",
+    bg: "#1D1B18", surface: "#252220", surface2: "#2E2B27",
+    border: "#3D3934", borderStrong: "#4E483F",
+    text: "#EBE7E0", textSub: "#C2BBAE", textMuted: "#8B8478",
+    header: "#1A1815", navActive: "#D9BB6E", navInactive: "#8B8478",
+    gold: "#D9BB6E", goldBg: "#3A311A", selectBg: "#2E2B27", rowAlt: "#211F1C",
     red: "#EF5350", redBg: "#1A0A0A",
   },
 };

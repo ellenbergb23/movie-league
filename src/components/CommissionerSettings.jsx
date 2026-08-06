@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { SL, CollapsibleSL, Card } from "./ui";
+import { SL, CollapsibleSL, Card, ConfirmDialog } from "./ui";
 
 export function CommissionerSettings({ leagueName, updateLeagueName, openScoringMode, toggleOpenScoringMode, leagueUsers, players, assignPlayer, t, showToast, movies, backfillPosters, backfillScoring, scoring, deleteMovie, draft, applyUnreleasedData }) {
   const [editingLeague, setEditingLeague] = useState(false);
@@ -18,6 +18,7 @@ export function CommissionerSettings({ leagueName, updateLeagueName, openScoring
   const [lastScoringMode, setLastScoringMode] = useState("all");
   const [looksReleasedOpen, setLooksReleasedOpen] = useState(true);
   const [managedFilmsOpen, setManagedFilmsOpen] = useState(true);
+  const [confirmRemove, setConfirmRemove] = useState(null); // { film, owner } | null
   const [skippedOpen, setSkippedOpen] = useState(false);
 
   async function runBackfill() {
@@ -63,10 +64,7 @@ export function CommissionerSettings({ leagueName, updateLeagueName, openScoring
 
   function handleRemoveFilm(film) {
     const owner = findDraftOwner(film);
-    const msg = owner
-      ? `⚠️ "${film}" is currently drafted by ${owner}. Removing it will clear that pick from their board. Continue?`
-      : `Remove "${film}" from the league? This can't be undone.`;
-    if (window.confirm(msg)) deleteMovie(film);
+    setConfirmRemove({ film, owner });
   }
 
   const filteredMovies = [...movies].sort((a, b) => a.localeCompare(b)).filter(f => f.toLowerCase().includes(filmFilter.trim().toLowerCase()));
@@ -91,6 +89,18 @@ export function CommissionerSettings({ leagueName, updateLeagueName, openScoring
 
   return (
     <div>
+      {confirmRemove && (
+        <ConfirmDialog
+          t={t}
+          title={`Remove "${confirmRemove.film}"?`}
+          body={confirmRemove.owner
+            ? `⚠️ Currently drafted by ${confirmRemove.owner}. Removing it will clear that pick from their board, and delete all its scoring data. This can't be undone.`
+            : "This deletes the film and all its scoring data. This can't be undone."}
+          confirmLabel="Remove film"
+          onCancel={() => setConfirmRemove(null)}
+          onConfirm={() => { deleteMovie(confirmRemove.film); setConfirmRemove(null); }}
+        />
+      )}
       <SL t={t}>film posters</SL>
       <Card t={t} style={{ marginBottom: 24 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -125,7 +135,7 @@ export function CommissionerSettings({ leagueName, updateLeagueName, openScoring
                   <li key={f} style={{ fontSize: 12, color: t.textSub, marginBottom: 3, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, maxWidth: 420 }}>
                     <span>{f}</span>
                     <button
-                      onClick={() => { if (window.confirm(`Remove "${f}" from the league? This can't be undone.`)) deleteMovie(f); }}
+                      onClick={() => setConfirmRemove({ film: f, owner: findDraftOwner(f) })}
                       style={{ fontSize: 10, color: t.red, background: "none", border: "none", cursor: "pointer", padding: "1px 4px", flexShrink: 0 }}
                     >
                       remove

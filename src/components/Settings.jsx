@@ -7,15 +7,15 @@ export function Settings({ movies, players, canEdit, myPlayerName, openScoringMo
   const [playerVal, setPlayerVal] = useState("");
   const [editingFilm, setEditingFilm] = useState(null);
   const [filmVal, setFilmVal] = useState("");
-  const [newFilm, setNewFilm] = useState("");
-  const [search, setSearch] = useState("");
+  // One combined search box drives both "add a new film" (via TMDB) and "find an existing
+  // film to rename" — previously these were two separate inputs doing overlapping jobs.
+  const [filmQuery, setFilmQuery] = useState("");
   const [tmdbSearchResults, setTmdbSearchResults] = useState([]);
-  const [tmdbSearchQuery, setTmdbSearchQuery] = useState("");
   const [showTmdbResults, setShowTmdbResults] = useState(false);
   const [tmdbLoading, setTmdbLoading] = useState(false);
 
-  const filtered = movies.filter(m => m.toLowerCase().includes(search.toLowerCase()));
-  const inp = { fontSize: 13, padding: "7px 10px", borderRadius: 7, border: `0.5px solid ${t.borderStrong}`, background: t.surface2, color: t.text };
+  const filtered = filmQuery ? movies.filter(m => m.toLowerCase().includes(filmQuery.toLowerCase())) : [];
+  const inp = { fontSize: 13, padding: "7px 10px", borderRadius: 4, border: `0.5px solid ${t.borderStrong}`, background: t.surface2, color: t.text };
 
   function withAuth(fn) { if (canEdit) fn(); else requireAuth(fn); }
 
@@ -29,13 +29,23 @@ export function Settings({ movies, players, canEdit, myPlayerName, openScoringMo
   }
 
   function selectTmdbFilm(title, poster_path) {
-    setNewFilm(title);
+    setFilmQuery(title);
     setShowTmdbResults(false);
-    setTmdbSearchQuery("");
     // Store poster data for this film
     if (poster_path) {
       sessionStorage.setItem(`poster_${title}`, poster_path);
     }
+  }
+
+  function handleAddFilm() {
+    if (!filmQuery.trim()) return;
+    withAuth(() => {
+      const poster_path = sessionStorage.getItem(`poster_${filmQuery}`);
+      addMovie(filmQuery, poster_path);
+      sessionStorage.removeItem(`poster_${filmQuery}`);
+      setFilmQuery("");
+      setShowTmdbResults(false);
+    });
   }
 
   return (
@@ -66,24 +76,23 @@ export function Settings({ movies, players, canEdit, myPlayerName, openScoringMo
       </div>
 
       <SL t={t}>film management</SL>
-      <Card t={t} style={{ marginBottom: 12 }}>
+      <Card t={t} style={{ marginBottom: 10 }}>
         <div style={{ display: "flex", gap: 8, position: "relative" }}>
-          <input 
-            value={newFilm} 
-            onChange={e => { 
-              setNewFilm(e.target.value); 
-              if (e.target.value.trim()) {
-                setTmdbSearchQuery(e.target.value);
-                handleTmdbSearch(e.target.value);
-              }
-            }} 
-            onKeyDown={e => { if (e.key === "Enter" && newFilm.trim()) { withAuth(() => { addMovie(newFilm); setNewFilm(""); setShowTmdbResults(false); }); } }} 
-            placeholder="Search films or add manually..." 
-            style={{ ...inp, flex: 1 }} 
+          <input
+            value={filmQuery}
+            onChange={e => {
+              setFilmQuery(e.target.value);
+              setEditingFilm(null);
+              if (e.target.value.trim()) handleTmdbSearch(e.target.value);
+              else setShowTmdbResults(false);
+            }}
+            onKeyDown={e => { if (e.key === "Enter" && !filtered.includes(filmQuery)) handleAddFilm(); }}
+            placeholder="Search films to rename, or add a new one…"
+            style={{ ...inp, flex: 1 }}
           />
-          <button onClick={() => { if (newFilm.trim()) withAuth(() => { const poster_path = sessionStorage.getItem(`poster_${newFilm}`); addMovie(newFilm, poster_path); setNewFilm(""); setShowTmdbResults(false); sessionStorage.removeItem(`poster_${newFilm}`); }); }} style={{ fontSize: 13, padding: "7px 16px", borderRadius: 7, border: "none", background: t.gold, color: "#fff", cursor: "pointer", fontWeight: 600 }}>Add</button>
+          <button onClick={handleAddFilm} disabled={!filmQuery.trim()} style={{ fontSize: 13, padding: "7px 16px", borderRadius: 4, border: "none", background: filmQuery.trim() ? t.gold : t.border, color: "#fff", cursor: filmQuery.trim() ? "pointer" : "default", fontWeight: 600, whiteSpace: "nowrap" }}>Add new</button>
           {showTmdbResults && (
-            <div style={{ position: "absolute", top: "100%", left: 0, right: 60, background: t.surface, border: `0.5px solid ${t.border}`, borderRadius: 8, marginTop: 4, zIndex: 10, maxHeight: 200, overflowY: "auto" }}>
+            <div style={{ position: "absolute", top: "100%", left: 0, right: 90, background: t.surface, border: `0.5px solid ${t.border}`, borderRadius: 4, marginTop: 4, zIndex: 10, maxHeight: 200, overflowY: "auto" }}>
               {tmdbLoading && <div style={{ padding: "12px 14px", fontSize: 12, color: t.textMuted }}>Searching…</div>}
               {!tmdbLoading && tmdbSearchResults.length > 0 && tmdbSearchResults.map(r => {
                 const year = r.release_date ? r.release_date.slice(0, 4) : null;
@@ -95,25 +104,22 @@ export function Settings({ movies, players, canEdit, myPlayerName, openScoringMo
                   </div>
                 );
               })}
-              {!tmdbLoading && tmdbSearchResults.length === 0 && <div style={{ padding: "12px 14px", fontSize: 12, color: t.textMuted }}>No results found</div>}
+              {!tmdbLoading && tmdbSearchResults.length === 0 && <div style={{ padding: "12px 14px", fontSize: 12, color: t.textMuted }}>No TMDB matches — "Add new" will add it manually</div>}
             </div>
           )}
         </div>
+        {filmQuery && <p style={{ fontSize: 11, color: t.textMuted, marginTop: 8 }}>{filtered.length} existing film{filtered.length !== 1 ? "s" : ""} match{filtered.length === 1 ? "es" : ""} — pick one below to rename, or "Add new" to add it as a new film.</p>}
       </Card>
-      <Card t={t} style={{ marginBottom: 10 }}>
-        <input value={search} onChange={e => { setSearch(e.target.value); setEditingFilm(null); }} placeholder="Search films to rename..." style={{ ...inp, width: "100%" }} />
-        {search && <p style={{ fontSize: 11, color: t.textMuted, marginTop: 6 }}>{filtered.length} result{filtered.length !== 1 ? "s" : ""}</p>}
-      </Card>
-      {filtered.length > 0 && search && (
-        <div style={{ background: t.surface, border: `0.5px solid ${t.border}`, borderRadius: 10, overflow: "hidden" }}>
+      {filtered.length > 0 && (
+        <div style={{ background: t.surface, border: `0.5px solid ${t.border}`, borderRadius: 4, overflow: "hidden" }}>
           {filtered.map((film, i) => (
             <div key={film} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 16px", borderBottom: i < filtered.length - 1 ? `0.5px solid ${t.border}` : "none", background: i % 2 === 0 ? t.surface : t.rowAlt }}>
               <Poster film={film} scoring={scoring} size="small" t={t} />
               {editingFilm === film ? (
                 <>
-                  <input value={filmVal} onChange={e => setFilmVal(e.target.value)} onKeyDown={e => { if (e.key === "Enter") { updateMovieName(film, filmVal); setEditingFilm(null); setSearch(""); } if (e.key === "Escape") setEditingFilm(null); }} autoFocus style={{ flex: 1, fontSize: 13, padding: "5px 9px", borderRadius: 6, border: `0.5px solid ${t.borderStrong}`, background: t.surface2, color: t.text }} />
-                  <button onClick={() => { updateMovieName(film, filmVal); setEditingFilm(null); setSearch(""); }} style={{ fontSize: 12, padding: "5px 12px", borderRadius: 6, border: "none", background: t.gold, color: "#fff", cursor: "pointer", fontWeight: 600 }}>Save</button>
-                  <button onClick={() => setEditingFilm(null)} style={{ fontSize: 12, padding: "5px 10px", borderRadius: 6, border: `0.5px solid ${t.border}`, background: "transparent", color: t.textMuted, cursor: "pointer" }}>Cancel</button>
+                  <input value={filmVal} onChange={e => setFilmVal(e.target.value)} onKeyDown={e => { if (e.key === "Enter") { updateMovieName(film, filmVal); setEditingFilm(null); setFilmQuery(""); } if (e.key === "Escape") setEditingFilm(null); }} autoFocus style={{ flex: 1, fontSize: 13, padding: "5px 9px", borderRadius: 4, border: `0.5px solid ${t.borderStrong}`, background: t.surface2, color: t.text }} />
+                  <button onClick={() => { updateMovieName(film, filmVal); setEditingFilm(null); setFilmQuery(""); }} style={{ fontSize: 12, padding: "5px 12px", borderRadius: 4, border: "none", background: t.gold, color: "#fff", cursor: "pointer", fontWeight: 600 }}>Save</button>
+                  <button onClick={() => setEditingFilm(null)} style={{ fontSize: 12, padding: "5px 10px", borderRadius: 4, border: `0.5px solid ${t.border}`, background: "transparent", color: t.textMuted, cursor: "pointer" }}>Cancel</button>
                 </>
               ) : (
                 <>
@@ -125,7 +131,7 @@ export function Settings({ movies, players, canEdit, myPlayerName, openScoringMo
           ))}
         </div>
       )}
-      {search && filtered.length === 0 && <p style={{ fontSize: 13, color: t.textMuted, textAlign: "center", padding: "20px 0" }}>No films match "{search}"</p>}
+      {filmQuery && filtered.length === 0 && !showTmdbResults && <p style={{ fontSize: 13, color: t.textMuted, textAlign: "center", padding: "20px 0" }}>No existing films match "{filmQuery}"</p>}
     </div>
   );
 }

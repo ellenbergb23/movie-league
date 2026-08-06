@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
-import { PLAYER_COLORS } from "../lib/constants";
+import { PLAYER_COLORS, FONT_SERIF } from "../lib/constants";
 import { calcFilmScore, getFilmOscarStatus, isFilmReleased } from "../lib/scoring";
 import { searchTMDB } from "../lib/tmdb";
-import { SL, Card, Poster } from "./ui";
+import { SL, Card, Poster, ConfirmDialog, PlaceholderBox } from "./ui";
 
 export function DraftBoard({ draft, players, movies, canEdit, isCommissioner, openScoringMode, updateDraftPick, requireAuth, scoring, goToFilmScoring, t, focusPlayer, addMovie, irSlots, placeOnIR, removeFromIR, replacements, rules, irConfig }) {
   const sel = { width: "100%", fontSize: 11, padding: "4px 6px", borderRadius: 6, border: `0.5px solid ${t.border}`, background: t.selectBg, color: t.text, cursor: "pointer" };
@@ -89,22 +89,17 @@ export function DraftBoard({ draft, players, movies, canEdit, isCommissioner, op
   return (
     <div>
       {confirmIR && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <div style={{ background: t.surface, border: `1px solid ${t.border}`, borderRadius: 12, padding: "24px", maxWidth: 360, width: "90%", textAlign: "center" }}>
-            <div style={{ fontSize: 24, marginBottom: 8 }}>🏥</div>
-            <p style={{ fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 8 }}>Place on IR?</p>
-            <p style={{ fontSize: 12, color: t.textMuted, marginBottom: 16, lineHeight: 1.5 }}>
-              <strong style={{ color: t.text }}>{confirmIR.film}</strong> will be moved to IR for <strong style={{ color: t.text }}>{confirmIR.player}</strong>. Their score will be zeroed out and a replacement slot will open. This is permanent unless removed by a commissioner.
-            </p>
-            <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
-              <button onClick={() => setConfirmIR(null)} style={{ fontSize: 13, padding: "8px 16px", borderRadius: 8, border: `0.5px solid ${t.border}`, background: "transparent", color: t.textMuted, cursor: "pointer" }}>Cancel</button>
-              <button onClick={() => { placeOnIR(confirmIR.player, confirmIR.film); setConfirmIR(null); }} style={{ fontSize: 13, padding: "8px 16px", borderRadius: 8, border: "none", background: "#B71C1C", color: "#fff", cursor: "pointer", fontWeight: 600 }}>Confirm IR</button>
-            </div>
-          </div>
-        </div>
+        <ConfirmDialog
+          t={t}
+          title="Place on IR?"
+          body={<>🏥 <strong style={{ color: t.text }}>{confirmIR.film}</strong> will be moved to IR for <strong style={{ color: t.text }}>{confirmIR.player}</strong>. Their score will be zeroed out and a replacement slot will open. This is permanent unless removed by a commissioner.</>}
+          confirmLabel="Confirm IR"
+          onCancel={() => setConfirmIR(null)}
+          onConfirm={() => { placeOnIR(confirmIR.player, confirmIR.film); setConfirmIR(null); }}
+        />
       )}
 
-      <SL t={t}>2026 draft board</SL>
+      <SL t={t}>2026 Draft Board</SL>
       {players.map((player, pi) => {
         const color = PLAYER_COLORS[pi % PLAYER_COLORS.length];
         const picks = draft[player] || Array(9).fill("");
@@ -117,14 +112,15 @@ export function DraftBoard({ draft, players, movies, canEdit, isCommissioner, op
         const isFocused = focusPlayer === player;
 
         return (
-          <Card key={player} t={t} style={{ marginBottom: 10, borderLeft: `3px solid ${color}`, outline: isFocused ? `2px solid ${t.gold}` : "none", outlineOffset: 2 }}>
-            <div id={`player-${player.replace(/\s/g, "-")}`} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-              <span style={{ fontSize: 14, fontWeight: 600, color: t.text }}>{player}</span>
+          <Card key={player} t={t} style={{ marginBottom: 10, borderLeft: `3px solid ${color}`, outline: isFocused ? `2px solid ${t.gold}` : "none", outlineOffset: 2, overflow: "visible" }}>
+            <div id={`player-${player.replace(/\s/g, "-")}`} style={{ position: "sticky", top: 0, zIndex: 3, background: t.surface, display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, padding: "4px 0", borderBottom: `0.5px solid ${t.border}` }}>
+              <span style={{ fontFamily: FONT_SERIF, fontSize: 15, fontWeight: 600, color: t.text }}>{player}</span>
               <span style={{ fontSize: 13, fontFamily: "monospace", color: t.gold, fontWeight: 600 }}>{total} pts</span>
             </div>
 
-            {/* Single grid — picks + IR box all flow together */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(100px, 1fr))", gap: 8 }}>
+            {/* Single grid — picks + IR box all flow together. 7 fixed columns so Rounds 1–7
+                sit on one row and S1/S2 (plus any IR box) wrap to the next. */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(90px, 1fr))", gap: 8 }}>
               {picks.map((film, ri) => {
                 const round = ["1","2","3","4","5","6","7","S1","S2"][ri];
                 const isOnIR = film && irFilms.includes(film);
@@ -139,7 +135,7 @@ export function DraftBoard({ draft, players, movies, canEdit, isCommissioner, op
 
                 return (
                   <div key={ri} style={{ position: "relative", display: "flex", flexDirection: "column", gap: 4 }}>
-                    <div style={{ position: "relative", background: winner ? t.goldBg : t.surface2, border: winner ? `2px solid ${t.gold}` : nominated ? `1.5px solid ${t.gold}` : isReplacement ? `1px dashed ${t.gold}` : `0.5px solid ${t.border}`, borderRadius: 8, padding: "8px", height: 230, overflow: "hidden" }}>
+                    <div style={{ position: "relative", background: winner ? t.goldBg : isEmpty && !isReplacement ? "transparent" : t.surface2, border: winner ? `2px solid ${t.gold}` : nominated ? `1.5px solid ${t.gold}` : isReplacement ? `1px dashed ${t.gold}` : isEmpty ? `1px dashed ${t.border}` : `0.5px solid ${t.border}`, borderRadius: 4, padding: "8px", height: 230, overflow: "hidden" }}>
                       {winner && <span style={{ position: "absolute", top: -1, right: 3, fontSize: 8, background: t.gold, color: "#fff", padding: "1px 4px", borderRadius: "0 0 3px 3px", fontWeight: 700 }}>BP ✦</span>}
                       {nominated && !winner && <span style={{ position: "absolute", top: -1, right: 3, fontSize: 8, background: t.goldBg, color: t.gold, padding: "1px 4px", borderRadius: "0 0 3px 3px", border: `0.5px solid ${t.gold}`, fontWeight: 600 }}>NOM</span>}
                       <div style={{ fontSize: 9, color: t.textMuted, marginBottom: 4, fontWeight: 600, letterSpacing: "0.06em" }}>RD {round}</div>
@@ -165,7 +161,9 @@ export function DraftBoard({ draft, players, movies, canEdit, isCommissioner, op
                           )}
                         </div>
                       ) : (
-                        <div style={{ width: 60, height: 104, margin: "0 auto", background: t.surface, border: `1px dashed ${t.border}`, borderRadius: 4 }} />
+                        <div style={{ margin: "0 auto", width: 60 }}>
+                          <PlaceholderBox width={60} height={90} t={t} label={isReplacement ? undefined : "empty"} />
+                        </div>
                       )}
                       {/* Fixed to the bottom of the card, below the score/Unreleased line either way — never overlaps the poster or gets clipped */}
                       {displayFilm && replacementFilms.includes(displayFilm) && (
@@ -214,9 +212,9 @@ export function DraftBoard({ draft, players, movies, canEdit, isCommissioner, op
               {/* IR box(es) — last items in the grid, flow naturally after S1 and S2. One box per IR'd film. */}
               {irFilms.map(irFilm => (
                 <div key={irFilm} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  <div style={{ position: "relative", background: "#1A0505", border: "1.5px solid #B71C1C", borderRadius: 8, padding: "8px", height: 230, overflow: "hidden" }}>
-                    <div style={{ fontSize: 9, color: "#B71C1C", marginBottom: 4, fontWeight: 700, letterSpacing: "0.06em" }}>IR</div>
-                    <div style={{ fontSize: 10, color: "#EF5350", fontWeight: 600, marginBottom: 4, textAlign: "center", lineHeight: 1.2, height: 36, display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
+                  <div style={{ position: "relative", background: t.redBg, border: `1.5px solid ${t.red}`, borderRadius: 4, padding: "8px", height: 230, overflow: "hidden" }}>
+                    <div style={{ fontSize: 9, color: t.red, marginBottom: 4, fontWeight: 700, letterSpacing: "0.06em" }}>IR</div>
+                    <div style={{ fontSize: 10, color: t.red, fontWeight: 600, marginBottom: 4, textAlign: "center", lineHeight: 1.2, height: 36, display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
                       {irFilm}
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "center" }}>

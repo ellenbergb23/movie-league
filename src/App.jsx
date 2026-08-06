@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase, LEAGUE_ID, COMMISSIONER_EMAIL } from "./lib/supabase";
-import { DEFAULT_PLAYERS, THEMES, DEFAULT_IR_CONFIG } from "./lib/constants";
+import { DEFAULT_PLAYERS, THEMES, DEFAULT_IR_CONFIG, FONT_SANS, FONT_SERIF } from "./lib/constants";
 import { calcFilmScore } from "./lib/scoring";
 import { searchTMDB, getTMDBBoxOffice, getTMDBWideReleaseDate } from "./lib/tmdb";
 import { getOMDbData, extractRTScores } from "./lib/omdb";
@@ -620,49 +620,62 @@ export default function App() {
 
   const css = `* { box-sizing: border-box; margin: 0; padding: 0; } body { background: ${t.bg}; } select { appearance: none; -webkit-appearance: none; } input[type=checkbox] { accent-color: ${t.gold}; width: 15px; height: 15px; cursor: pointer; } .clickable:hover { opacity: 0.75; }`;
 
-  if (authLoading || dataLoading) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: t.bg, color: t.textMuted, fontFamily: "system-ui", fontSize: 14 }}>Loading…</div>;
+  if (authLoading || dataLoading) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: t.bg, color: t.textMuted, fontFamily: FONT_SANS, fontSize: 14 }}>Loading…</div>;
 
   // Only show waiting page if logged in but not yet assigned (and not commissioner)
   if (authUser && !isCommissioner && !isAssigned) return <WaitingPage t={t} user={authUser} onSignOut={signOut} />;
 
   const tabs = ["leaderboard","draft board","scoring","settings"];
   if (isCommissioner) tabs.push("commissioner", "league management");
+  const tabLabels = { "leaderboard": "Leaderboard", "draft board": "Draft Board", "scoring": "Scoring", "settings": "Settings", "commissioner": "Commissioner", "league management": "League Management" };
 
   return (
-    <div style={{ fontFamily: "'Inter', system-ui, sans-serif", minHeight: "100vh", background: t.bg, color: t.text }}>
+    <div style={{ fontFamily: FONT_SANS, minHeight: "100vh", background: t.bg, color: t.text }}>
       <style>{css}</style>
 
       {showAuthModal && <AuthModal t={t} onAuth={user => { setAuthUser(user); setShowAuthModal(false); }} onClose={() => setShowAuthModal(false)} />}
       {toast && <div style={{ position: "fixed", top: 16, right: 16, background: t.gold, color: darkMode ? "#0A0A0A" : "#fff", padding: "9px 14px", borderRadius: 8, fontSize: 13, fontWeight: 500, zIndex: 999 }}>{toast}</div>}
 
-      <header style={{ background: t.header, borderBottom: `0.5px solid ${t.border}`, padding: "0 1.5rem", display: "flex", alignItems: "center", justifyContent: "space-between", height: 54 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={{ fontSize: 15, fontWeight: 600, color: t.gold }}>🎬</span>
-          <span style={{ fontSize: 14, fontWeight: 600, color: t.text }}>Fantasy Film League</span>
-          <span style={{ fontSize: 12, color: t.textMuted, borderLeft: `0.5px solid ${t.border}`, paddingLeft: 10 }}>{leagueName}</span>
-          {openScoringMode && isCommissioner && <span style={{ fontSize: 11, color: t.gold, border: `0.5px solid ${t.gold}`, padding: "2px 7px", borderRadius: 4, fontWeight: 600 }}>Open Scoring Mode</span>}
+      <header style={{ background: t.header, borderBottom: `0.5px solid ${t.border}`, padding: "0 1.5rem", display: "flex", alignItems: "center", justifyContent: "space-between", height: 68 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <span style={{ width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", border: `0.5px solid ${t.gold}`, borderRadius: 4, fontFamily: FONT_SERIF, fontSize: 13, fontWeight: 600, color: t.gold, flexShrink: 0 }}>FFL</span>
+          <div>
+            <div style={{ fontFamily: FONT_SERIF, fontSize: 19, fontWeight: 500, color: t.text, lineHeight: 1.2 }}>{leagueName}</div>
+            <div style={{ fontSize: 10, fontWeight: 600, color: t.textMuted, letterSpacing: "0.1em", textTransform: "uppercase" }}>2026 Season</div>
+          </div>
+          {openScoringMode && isCommissioner && <span style={{ fontSize: 11, color: t.gold, border: `0.5px solid ${t.gold}`, padding: "2px 7px", borderRadius: 4, fontWeight: 600, marginLeft: 4 }}>Open Scoring Mode</span>}
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
           {authUser ? (
             <>
-              <span style={{ fontSize: 12, color: t.textSub }}>{myPlayerName || (isCommissioner ? "Commissioner" : authUser.email)}</span>
-              {isCommissioner && <span style={{ fontSize: 11, color: t.gold, border: `0.5px solid ${t.gold}`, padding: "2px 7px", borderRadius: 4 }}>commissioner</span>}
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontFamily: FONT_SERIF, fontSize: 13, color: t.text }}>{myPlayerName || (isCommissioner ? "Commissioner" : authUser.email)}</div>
+                {isCommissioner && <div style={{ fontSize: 10, color: t.gold, border: `0.5px solid ${t.gold}`, borderRadius: 10, padding: "1px 7px", display: "inline-block", marginTop: 2 }}>Commissioner</div>}
+              </div>
               <button onClick={signOut} style={{ background: "none", border: `0.5px solid ${t.border}`, borderRadius: 6, padding: "5px 10px", fontSize: 12, color: t.textMuted, cursor: "pointer" }}>Sign out</button>
             </>
           ) : (
             <button onClick={() => setShowAuthModal(true)} style={{ background: "none", border: `0.5px solid ${t.border}`, borderRadius: 6, padding: "5px 12px", fontSize: 12, color: t.textSub, cursor: "pointer" }}>Log in</button>
           )}
-          <button onClick={toggleDark} style={{ background: t.surface2, border: `0.5px solid ${t.border}`, borderRadius: 6, padding: "5px 10px", fontSize: 12, color: t.textSub, cursor: "pointer" }}>{darkMode ? "☀" : "☾"}</button>
+          <button
+            onClick={toggleDark}
+            aria-label="Toggle dark mode"
+            style={{ position: "relative", width: 40, height: 22, borderRadius: 11, border: `0.5px solid ${t.border}`, background: t.surface2, cursor: "pointer", flexShrink: 0, padding: 0 }}
+          >
+            <span style={{ position: "absolute", left: 4, top: "50%", transform: "translateY(-50%)", fontSize: 9, lineHeight: 1 }}>☀</span>
+            <span style={{ position: "absolute", right: 4, top: "50%", transform: "translateY(-50%)", fontSize: 9, lineHeight: 1 }}>☾</span>
+            <span style={{ position: "absolute", top: 2, left: darkMode ? 20 : 2, width: 16, height: 16, borderRadius: "50%", background: t.gold, transition: "left 0.15s" }} />
+          </button>
         </div>
       </header>
 
       <nav style={{ background: t.header, borderBottom: `0.5px solid ${t.border}`, padding: "0 1.5rem", display: "flex" }}>
         {tabs.map(tb => (
-          <button key={tb} onClick={() => requestTabChange(tb)} style={{ padding: "12px 16px", fontSize: 13, fontWeight: tab === tb ? 600 : 400, color: tab === tb ? t.navActive : (tb === "commissioner" || tb === "league management") ? t.gold : t.navInactive, borderBottom: tab === tb ? `2px solid ${(tab === "commissioner" || tab === "league management") ? t.gold : t.navActive}` : "2px solid transparent", background: "none", border: "none", borderBottom: tab === tb ? `2px solid ${(tab === "commissioner" || tab === "league management") ? t.gold : t.navActive}` : "2px solid transparent", cursor: "pointer" }}>{tb}</button>
+          <button key={tb} onClick={() => requestTabChange(tb)} style={{ fontFamily: FONT_SERIF, padding: "16px 14px 13px", fontSize: 14, fontWeight: tab === tb ? 700 : 400, color: tab === tb ? t.navActive : (tb === "commissioner" || tb === "league management") ? t.gold : t.navInactive, background: "none", border: "none", borderBottom: tab === tb ? `2px solid ${(tab === "commissioner" || tab === "league management") ? t.gold : t.navActive}` : "2px solid transparent", cursor: "pointer" }}>{tabLabels[tb]}</button>
         ))}
       </nav>
 
-      <main style={{ maxWidth: 880, margin: "0 auto", padding: "1.5rem" }}>
+      <main style={{ maxWidth: 900, margin: "0 auto", padding: "1.5rem" }}>
         {tab === "leaderboard"  && <Leaderboard rankedPlayers={rankedPlayers} getPlayerTotal={getPlayerTotal} draft={draft} scoring={scoringWithMeta} t={t} goToPlayerDraft={goToPlayerDraft} irSlots={irSlots} rules={scoringRules} />}
         {tab === "draft board"  && <DraftBoard draft={draft} players={players} movies={movies} canEdit={canEdit} isCommissioner={isCommissioner} openScoringMode={openScoringMode} updateDraftPick={updateDraftPick} requireAuth={requireAuth} scoring={scoringWithMeta} goToFilmScoring={goToFilmScoring} t={t} focusPlayer={draftFocusPlayer} addMovie={addMovie} irSlots={irSlots} placeOnIR={placeOnIR} removeFromIR={removeFromIR} replacements={replacements} rules={scoringRules} irConfig={irConfig} />}
         {tab === "scoring"      && <Scoring scoring={scoringWithMeta} movies={movies} canEdit={canEdit} isCommissioner={isCommissioner} requireAuth={requireAuth} updateScoring={updateScoring} updateScoringMulti={updateScoringMulti} updateScoringRoot={updateScoringRoot} updateOscarField={updateOscarField} updateMovieName={updateMovieName} scoringFilm={scoringFilm} setScoringFilm={setScoringFilm} showToast={showToast} fetchFilmScoring={fetchFilmScoring} t={t} rules={scoringRules} />}

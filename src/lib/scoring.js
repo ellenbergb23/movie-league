@@ -48,10 +48,11 @@ export function getPlayerOscarTotals(player, draft, scoring) {
   return { noms, wins };
 }
 
-export function getPlayerReleaseStats(player, draft, scoring) {
+export function getPlayerReleaseStats(player, draft, scoring, irFilm = null) {
   const films = (draft[player] || []).filter(Boolean);
-  let released = 0, unreleased = 0, releasedTotal = 0;
+  let released = 0, unreleased = 0, releasedTotal = 0, onIR = 0;
   films.forEach(film => {
+    if (film === irFilm) { onIR++; return; }
     if (isFilmReleased(film, scoring)) {
       released++;
       releasedTotal += calcFilmScore(film, scoring);
@@ -60,7 +61,7 @@ export function getPlayerReleaseStats(player, draft, scoring) {
     }
   });
   const avgScore = released > 0 ? releasedTotal / released : null;
-  return { released, unreleased, avgScore };
+  return { released, unreleased, onIR, avgScore };
 }
 
 export function isFilmReleased(film, scoring) {

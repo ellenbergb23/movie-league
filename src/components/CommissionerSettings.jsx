@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { SL, CollapsibleSL, Card } from "./ui";
 
-export function CommissionerSettings({ leagueName, updateLeagueName, marxistMode, toggleMarxistMode, leagueUsers, players, assignPlayer, t, showToast, movies, backfillPosters, backfillScoring, scoring, deleteMovie, draft, applyUnreleasedData }) {
+export function CommissionerSettings({ leagueName, updateLeagueName, openScoringMode, toggleOpenScoringMode, leagueUsers, players, assignPlayer, t, showToast, movies, backfillPosters, backfillScoring, scoring, deleteMovie, draft, applyUnreleasedData }) {
   const [editingLeague, setEditingLeague] = useState(false);
   const [leagueVal, setLeagueVal] = useState(leagueName);
   const [copied, setCopied] = useState(false);
@@ -15,6 +15,7 @@ export function CommissionerSettings({ leagueName, updateLeagueName, marxistMode
   const [scoringResults, setScoringResults] = useState(null);
   const [forceRecheckScoring, setForceRecheckScoring] = useState(false);
   const [dismissedUnreleased, setDismissedUnreleased] = useState([]); // films clicked "Remain unreleased" — cleared on next fetch
+  const [lastScoringMode, setLastScoringMode] = useState("all");
   const [looksReleasedOpen, setLooksReleasedOpen] = useState(true);
   const [managedFilmsOpen, setManagedFilmsOpen] = useState(true);
   const [skippedOpen, setSkippedOpen] = useState(false);
@@ -28,11 +29,12 @@ export function CommissionerSettings({ leagueName, updateLeagueName, marxistMode
     setPosterResults(results);
   }
 
-  async function runBackfillScoring() {
+  async function runBackfillScoring(mode = "all") {
     setScoringRunning(true);
     setScoringResults(null);
     setDismissedUnreleased([]);
-    const results = await backfillScoring((current, total, film) => setScoringProgress({ current, total, film }), forceRecheckScoring);
+    setLastScoringMode(mode);
+    const results = await backfillScoring((current, total, film) => setScoringProgress({ current, total, film }), forceRecheckScoring, mode);
     setScoringRunning(false);
     setScoringProgress(null);
     setScoringResults(results);
@@ -74,15 +76,15 @@ export function CommissionerSettings({ leagueName, updateLeagueName, marxistMode
     if (!results) return [];
     const reasonsByFilm = {};
     const addReason = (film, reason) => {
-      if (!reasonsByFilm[film]) reasonsByFilm[film] = [];
-      if (!reasonsByFilm[film].includes(reason)) reasonsByFilm[film].push(reason);
+      if (!reasonsByFilm[film]) reasonsByFilm[film] = { reasons: [], missingRT: false };
+      if (!reasonsByFilm[film].reasons.includes(reason)) reasonsByFilm[film].reasons.push(reason);
     };
     (results.boNotFound || []).forEach(f => addReason(f, "No box office data found"));
     (results.boTooEarly || []).forEach(f => addReason(f, "Box office below $5M threshold"));
-    (results.rtNotFound || []).forEach(f => addReason(f, "No Rotten Tomatoes data found"));
+    (results.rtNotFound || []).forEach(f => { addReason(f, "No Rotten Tomatoes data found"); reasonsByFilm[f].missingRT = true; });
     (results.rtTooEarly || []).forEach(f => addReason(f, "Too early — not yet released"));
     return Object.entries(reasonsByFilm)
-      .map(([film, reasons]) => ({ film, reasons }))
+      .map(([film, { reasons, missingRT }]) => ({ film, reasons, missingRT }))
       .sort((a, b) => a.film.localeCompare(b.film));
   }
   const skippedFilms = buildSkippedFilms(scoringResults);
@@ -138,18 +140,26 @@ export function CommissionerSettings({ leagueName, updateLeagueName, marxistMode
 
       <SL t={t}>scoring data</SL>
       <Card t={t} style={{ marginBottom: 24 }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+          <div style={{ flex: 1, minWidth: 200 }}>
             <p style={{ fontSize: 14, fontWeight: 600, color: t.text, marginBottom: 4 }}>Fetch box office & Rotten Tomatoes</p>
             <p style={{ fontSize: 12, color: t.textMuted, lineHeight: 1.5 }}>
               {scoringRunning && scoringProgress
                 ? `Fetching ${scoringProgress.current}/${scoringProgress.total}: ${scoringProgress.film}…`
-                : `Looks up box office and RT scores for all ${movies.length} films — skips any that already have data.`}
+                : `Looks up box office and/or RT scores for all ${movies.length} films — skips any that already have data.`}
             </p>
           </div>
-          <button onClick={runBackfillScoring} disabled={scoringRunning} style={{ fontSize: 13, padding: "8px 16px", borderRadius: 8, border: `1.5px solid ${t.gold}`, background: scoringRunning ? "transparent" : t.gold, color: scoringRunning ? t.gold : "#fff", cursor: scoringRunning ? "default" : "pointer", fontWeight: 600, whiteSpace: "nowrap", marginLeft: 16, opacity: scoringRunning ? 0.7 : 1 }}>
-            {scoringRunning ? "Running…" : "Fetch scoring"}
-          </button>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button onClick={() => runBackfillScoring("bo")} disabled={scoringRunning} style={{ fontSize: 12, padding: "7px 12px", borderRadius: 8, border: `1.5px solid ${t.gold}`, background: "transparent", color: t.gold, cursor: scoringRunning ? "default" : "pointer", fontWeight: 600, whiteSpace: "nowrap", opacity: scoringRunning ? 0.5 : 1 }}>
+              Fetch Box Office
+            </button>
+            <button onClick={() => runBackfillScoring("rt")} disabled={scoringRunning} style={{ fontSize: 12, padding: "7px 12px", borderRadius: 8, border: `1.5px solid ${t.gold}`, background: "transparent", color: t.gold, cursor: scoringRunning ? "default" : "pointer", fontWeight: 600, whiteSpace: "nowrap", opacity: scoringRunning ? 0.5 : 1 }}>
+              Fetch Rotten Tomatoes
+            </button>
+            <button onClick={() => runBackfillScoring("all")} disabled={scoringRunning} style={{ fontSize: 13, padding: "8px 16px", borderRadius: 8, border: `1.5px solid ${t.gold}`, background: scoringRunning ? "transparent" : t.gold, color: scoringRunning ? t.gold : "#fff", cursor: scoringRunning ? "default" : "pointer", fontWeight: 600, whiteSpace: "nowrap", opacity: scoringRunning ? 0.7 : 1 }}>
+              {scoringRunning ? "Running…" : "Fetch All Scoring"}
+            </button>
+          </div>
         </div>
         <label style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 10, fontSize: 12, color: t.textSub, cursor: "pointer" }}>
           <input type="checkbox" checked={forceRecheckScoring} onChange={e => setForceRecheckScoring(e.target.checked)} />
@@ -157,8 +167,8 @@ export function CommissionerSettings({ leagueName, updateLeagueName, marxistMode
         </label>
         {scoringResults && (
           <div style={{ marginTop: 14, paddingTop: 14, borderTop: `0.5px solid ${t.border}` }}>
-            <p style={{ fontSize: 12, fontWeight: 600, color: t.text, marginBottom: 6 }}>Box Office: {scoringResults.boUpdated} added · {scoringResults.boSkipped} skipped</p>
-            <p style={{ fontSize: 12, fontWeight: 600, color: t.text }}>Rotten Tomatoes: {scoringResults.rtUpdated} added · {scoringResults.rtSkipped} skipped</p>
+            {lastScoringMode !== "rt" && <p style={{ fontSize: 12, fontWeight: 600, color: t.text, marginBottom: 6 }}>Box Office: {scoringResults.boUpdated} added · {scoringResults.boSkipped} skipped</p>}
+            {lastScoringMode !== "bo" && <p style={{ fontSize: 12, fontWeight: 600, color: t.text }}>Rotten Tomatoes: {scoringResults.rtUpdated} added · {scoringResults.rtSkipped} skipped</p>}
           </div>
         )}
       </Card>
@@ -183,7 +193,7 @@ export function CommissionerSettings({ leagueName, updateLeagueName, marxistMode
                   <ul style={{ paddingLeft: 0, margin: 0, listStyle: "none" }}>
                     {stillUnreleased.map(({ film, candidate }) => (
                       <li key={film} style={{ fontSize: 12, color: t.text, marginBottom: 6, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-                        <span>
+                        <span style={{ textAlign: "left" }}>
                           {film}
                           {candidate.boRaw != null && <span style={{ color: t.textMuted, marginLeft: 6 }}>· ${(candidate.boRaw / 1_000_000).toFixed(1)}m</span>}
                           {candidate.criticsRT && <span style={{ color: t.textMuted, marginLeft: 6 }}>· RT {candidate.criticsRT}</span>}
@@ -223,10 +233,22 @@ export function CommissionerSettings({ leagueName, updateLeagueName, marxistMode
                 Films from the last fetch that came up empty, and why. Informational only — no action needed here.
               </p>
               <div style={{ maxHeight: 320, overflowY: "auto", border: `0.5px solid ${t.border}`, borderRadius: 8 }}>
-                {skippedFilms.map(({ film, reasons }, i) => (
+                {skippedFilms.map(({ film, reasons, missingRT }, i) => (
                   <div key={film} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "9px 14px", borderBottom: i < skippedFilms.length - 1 ? `0.5px solid ${t.border}` : "none", background: i % 2 === 0 ? t.surface : t.rowAlt }}>
-                    <span style={{ fontSize: 13, color: t.text, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{film}</span>
-                    <span style={{ fontSize: 10, color: t.textMuted, fontStyle: "italic", flexShrink: 0, textAlign: "right" }}>{reasons.join(" · ")}</span>
+                    <span style={{ fontSize: 13, color: t.text, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "left" }}>{film}</span>
+                    <span style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                      <span style={{ fontSize: 10, color: t.textMuted, fontStyle: "italic", textAlign: "right" }}>{reasons.join(" · ")}</span>
+                      {missingRT && (
+                        <a
+                          href={`https://www.rottentomatoes.com/search?search=${encodeURIComponent(film)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ fontSize: 10, color: t.gold, whiteSpace: "nowrap", textDecoration: "none", border: `0.5px solid ${t.gold}`, borderRadius: 5, padding: "2px 6px" }}
+                        >
+                          RT ↗
+                        </a>
+                      )}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -257,7 +279,7 @@ export function CommissionerSettings({ leagueName, updateLeagueName, marxistMode
               const owner = findDraftOwner(f);
               return (
                 <div key={f} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "9px 14px", borderBottom: i < filteredMovies.length - 1 ? `0.5px solid ${t.border}` : "none", background: i % 2 === 0 ? t.surface : t.rowAlt }}>
-                  <span style={{ fontSize: 13, color: t.text, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <span style={{ fontSize: 13, color: t.text, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "left" }}>
                     {f}
                     {owner && <span style={{ fontSize: 10, color: t.gold, marginLeft: 8, fontWeight: 600 }}>· drafted by {owner}</span>}
                   </span>
@@ -274,19 +296,19 @@ export function CommissionerSettings({ leagueName, updateLeagueName, marxistMode
         </Card>
       )}
 
-      <SL t={t}>marxist mode</SL>
+      <SL t={t}>scoring mode</SL>
       <Card t={t} style={{ marginBottom: 24 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
-            <p style={{ fontSize: 14, fontWeight: 600, color: marxistMode ? t.red : t.text, marginBottom: 4 }}>
-              {marxistMode ? "☭ Marxist Mode is ON" : "Marxist Mode is OFF"}
+            <p style={{ fontSize: 14, fontWeight: 600, color: openScoringMode ? t.gold : t.text, marginBottom: 4 }}>
+              {openScoringMode ? "Open Scoring Mode is ON" : "Commissioner Scoring Mode is ON"}
             </p>
             <p style={{ fontSize: 12, color: t.textMuted, lineHeight: 1.5 }}>
-              {marxistMode ? "Anyone can edit scores, picks, and film names — no login required." : "Only logged-in members can edit. Commissioner controls scoring."}
+              {openScoringMode ? "Anyone can edit scores, picks, and film names — no login required." : "Only logged-in members can edit. Commissioner controls scoring."}
             </p>
           </div>
-          <button onClick={toggleMarxistMode} style={{ fontSize: 13, padding: "8px 16px", borderRadius: 8, border: `1.5px solid ${marxistMode ? t.red : t.border}`, background: marxistMode ? t.redBg : "transparent", color: marxistMode ? t.red : t.textSub, cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap", marginLeft: 16 }}>
-            {marxistMode ? "Disable" : "Enable ☭"}
+          <button onClick={toggleOpenScoringMode} style={{ fontSize: 13, padding: "8px 16px", borderRadius: 8, border: `1.5px solid ${openScoringMode ? t.gold : t.border}`, background: openScoringMode ? t.goldBg : "transparent", color: openScoringMode ? t.gold : t.textSub, cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap", marginLeft: 16 }}>
+            {openScoringMode ? "Switch to Commissioner Scoring" : "Switch to Open Scoring"}
           </button>
         </div>
       </Card>

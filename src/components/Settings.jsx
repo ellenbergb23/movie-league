@@ -2,7 +2,7 @@ import { useState } from "react";
 import { PLAYER_COLORS } from "../lib/constants";
 import { SL, Card, Poster } from "./ui";
 
-export function Settings({ movies, players, canEdit, myPlayerName, marxistMode, updateMovieName, addMovie, renamePlayer, t, showToast, requireAuth, isCommissioner, searchTMDB, scoring }) {
+export function Settings({ movies, players, canEdit, myPlayerName, openScoringMode, updateMovieName, addMovie, renamePlayer, t, showToast, requireAuth, isCommissioner, searchTMDB, scoring }) {
   const [editingPlayer, setEditingPlayer] = useState(null);
   const [playerVal, setPlayerVal] = useState("");
   const [editingFilm, setEditingFilm] = useState(null);
@@ -44,7 +44,7 @@ export function Settings({ movies, players, canEdit, myPlayerName, marxistMode, 
       <div style={{ background: t.surface, border: `0.5px solid ${t.border}`, borderRadius: 10, overflow: "hidden", marginBottom: 24 }}>
         {players.map((player, i) => {
           const isMe = player === myPlayerName;
-          const canRename = isMe || isCommissioner || marxistMode;
+          const canRename = isMe || isCommissioner || openScoringMode;
           return (
             <div key={player} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 16px", borderBottom: i < players.length - 1 ? `0.5px solid ${t.border}` : "none", background: isMe ? t.goldBg : i % 2 === 0 ? t.surface : t.rowAlt }}>
               <span style={{ width: 9, height: 9, borderRadius: "50%", background: PLAYER_COLORS[i % PLAYER_COLORS.length], display: "inline-block", flexShrink: 0 }} />

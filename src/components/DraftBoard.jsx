@@ -4,7 +4,7 @@ import { calcFilmScore, getFilmOscarStatus, isFilmReleased } from "../lib/scorin
 import { searchTMDB } from "../lib/tmdb";
 import { SL, Card, Poster } from "./ui";
 
-export function DraftBoard({ draft, players, movies, canEdit, isCommissioner, marxistMode, updateDraftPick, requireAuth, scoring, goToFilmScoring, t, focusPlayer, addMovie, irSlots, placeOnIR, removeFromIR }) {
+export function DraftBoard({ draft, players, movies, canEdit, isCommissioner, openScoringMode, updateDraftPick, requireAuth, scoring, goToFilmScoring, t, focusPlayer, addMovie, irSlots, placeOnIR, removeFromIR, replacements }) {
   const sel = { width: "100%", fontSize: 11, padding: "4px 6px", borderRadius: 6, border: `0.5px solid ${t.border}`, background: t.selectBg, color: t.text, cursor: "pointer" };
   const [editingSlot, setEditingSlot] = useState(null);
   const [swapQuery, setSwapQuery] = useState("");
@@ -109,6 +109,7 @@ export function DraftBoard({ draft, players, movies, canEdit, isCommissioner, ma
         const color = PLAYER_COLORS[pi % PLAYER_COLORS.length];
         const picks = draft[player] || Array(9).fill("");
         const irFilm = irSlots?.[player] || null;
+        const replacementFilm = replacements?.[player] || null;
         const total = picks.reduce((s, f) => {
           if (!f || f === irFilm) return s;
           return s + calcFilmScore(f, scoring);
@@ -150,6 +151,9 @@ export function DraftBoard({ draft, players, movies, canEdit, isCommissioner, ma
                             : <span style={{ color: t.textMuted, fontWeight: 400 }}>TBD</span>
                         }
                       </div>
+                      {displayFilm && displayFilm === replacementFilm && (
+                        <div style={{ fontSize: 8, color: t.gold, fontWeight: 700, textAlign: "center", marginBottom: 4, letterSpacing: "0.04em" }}>(replacement)</div>
+                      )}
                       {displayFilm ? (
                         <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "center" }}>
                           <Poster film={displayFilm} scoring={scoring} size="small" t={t} />
@@ -168,7 +172,7 @@ export function DraftBoard({ draft, players, movies, canEdit, isCommissioner, ma
                       )}
                     </div>
 
-                    {canEdit && (isCommissioner || marxistMode) && !isOnIR && (
+                    {canEdit && (isCommissioner || openScoringMode) && !isOnIR && (
                       isEditing ? (
                         <SearchDropdown player={player} ri={ri} displayFilm={displayFilm} />
                       ) : (
@@ -185,7 +189,7 @@ export function DraftBoard({ draft, players, movies, canEdit, isCommissioner, ma
                         </div>
                       )
                     )}
-                    {isReplacement && canEdit && (isCommissioner || marxistMode) && (
+                    {isReplacement && canEdit && (isCommissioner || openScoringMode) && (
                       editingSlot === slotKey ? (
                         <SearchDropdown player={player} ri={ri} displayFilm="" />
                       ) : (

@@ -6,10 +6,10 @@ import { searchTMDB, getTMDBBoxOffice, getTMDBWideReleaseDate } from "./lib/tmdb
 import { getOMDbData, extractRTScores } from "./lib/omdb";
 import { revenueToBoxOfficeTier, isValidRevenue } from "./lib/scoring-utils";
 import {
-  dbSet, dbGetPlayers, dbGetLeagueName, dbGetMarxistMode, dbSetMarxistMode,
+  dbSet, dbGetPlayers, dbGetLeagueName, dbGetOpenScoringMode, dbSetOpenScoringMode,
   dbGetDraft, dbSetDraftPick, dbGetScores, dbSetScore, dbGetMovies, dbAddMovie,
   dbDeleteMovie, dbRenameMovie, dbRenamePlayer, dbGetLeagueUsers, dbAssignPlayer, dbGetCurrentUser,
-  dbGetIR, dbSetIR,
+  dbGetIR, dbSetIR, dbGetReplacements, dbSetReplacements,
 } from "./lib/db";
 import { AuthModal } from "./components/AuthModal";
 import { WaitingPage } from "./components/WaitingPage";
@@ -30,7 +30,7 @@ export default function App() {
   const [scoring, setScoring] = useState({});
   const [movies, setMovies] = useState([]);
   const [leagueName, setLeagueName] = useState("The 2026 Film League");
-  const [marxistMode, setMarxistMode] = useState(false);
+  const [openScoringMode, setOpenScoringMode] = useState(false);
   const [leagueUsers, setLeagueUsers] = useState([]);
   const [dataLoading, setDataLoading] = useState(true);
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem("darkMode") === "true");
@@ -39,14 +39,15 @@ export default function App() {
   const [draftFocusPlayer, setDraftFocusPlayer] = useState(null);
   const [toast, setToast] = useState(null);
   const [irSlots, setIrSlots] = useState({}); // { playerName: filmTitle }
+  const [replacements, setReplacements] = useState({}); // { playerName: filmTitle } — permanent, set once when a slot freed by IR is filled
 
   const t = darkMode ? THEMES.dark : THEMES.light;
   const isCommissioner = authUser?.email === COMMISSIONER_EMAIL;
   const myPlayerName = dbUser?.player_name || null;
   const isAssigned = !!myPlayerName;
 
-  // canEdit: true if marxist mode is on, OR if user is commissioner, OR if user is assigned
-  const canEdit = marxistMode || isCommissioner || isAssigned;
+  // canEdit: true if Open Scoring Mode is on, OR if user is commissioner, OR if user is assigned
+  const canEdit = openScoringMode || isCommissioner || isAssigned;
   // canEditOwn: can edit their own team name only
   const canEditOwn = canEdit;
 
@@ -69,16 +70,17 @@ export default function App() {
   useEffect(() => {
     async function load() {
       setDataLoading(true);
-      const [name, loadedPlayers, movieData, scoreData, usersData, marxist, irData] = await Promise.all([
-        dbGetLeagueName(), dbGetPlayers(), dbGetMovies(), dbGetScores(), dbGetLeagueUsers(), dbGetMarxistMode(), dbGetIR()
+      const [name, loadedPlayers, movieData, scoreData, usersData, openScoring, irData, replacementsData] = await Promise.all([
+        dbGetLeagueName(), dbGetPlayers(), dbGetMovies(), dbGetScores(), dbGetLeagueUsers(), dbGetOpenScoringMode(), dbGetIR(), dbGetReplacements()
       ]);
       setLeagueName(name);
       setPlayers(loadedPlayers);
       setMovies(movieData);
       setScoring(scoreData);
       setLeagueUsers(usersData);
-      setMarxistMode(marxist);
+      setOpenScoringMode(openScoring);
       setIrSlots(irData);
+      setReplacements(replacementsData);
       const draftData = await dbGetDraft(loadedPlayers);
       setDraft(draftData);
       setDataLoading(false);
@@ -91,8 +93,9 @@ export default function App() {
     const settingsSub = supabase.channel("st").on("postgres_changes", { event: "*", schema: "public", table: "settings", filter: `league_id=eq.${LEAGUE_ID}` }, async () => {
       setLeagueName(await dbGetLeagueName());
       const p = await dbGetPlayers(); setPlayers(p);
-      setMarxistMode(await dbGetMarxistMode());
+      setOpenScoringMode(await dbGetOpenScoringMode());
       setIrSlots(await dbGetIR());
+      setReplacements(await dbGetReplacements());
     }).subscribe();
     const usersSub = supabase.channel("us").on("postgres_changes", { event: "*", schema: "public", table: "users", filter: `league_id=eq.${LEAGUE_ID}` }, async () => {
       setLeagueUsers(await dbGetLeagueUsers());
@@ -107,15 +110,15 @@ export default function App() {
   async function signOut() { await supabase.auth.signOut(); setAuthUser(null); setDbUser(null); }
 
   function requireAuth(action) {
-    if (marxistMode || isCommissioner || isAssigned) { action(); }
+    if (openScoringMode || isCommissioner || isAssigned) { action(); }
     else { setShowAuthModal(true); }
   }
 
-  async function toggleMarxistMode() {
-    const next = !marxistMode;
-    setMarxistMode(next);
-    await dbSetMarxistMode(next);
-    showToast(next ? "☭ Marxist Mode enabled" : "Marxist Mode disabled");
+  async function toggleOpenScoringMode() {
+    const next = !openScoringMode;
+    setOpenScoringMode(next);
+    await dbSetOpenScoringMode(next);
+    showToast(next ? "Open Scoring Mode enabled" : "Commissioner Scoring Mode enabled");
   }
 
   async function updateLeagueName(name) { setLeagueName(name); await dbSet("league_name", name); showToast("Saved"); }
@@ -160,6 +163,15 @@ export default function App() {
     await updateScoring(film, field, arr);
   }
   async function updateDraftPick(player, roundIdx, film) {
+    // If this round slot currently holds the player's IR'd film, filling it with a new film
+    // permanently tags that new film as a replacement pick (one IR per team, so this only ever fires once).
+    const priorFilm = (draft[player] || [])[roundIdx];
+    const irFilm = irSlots[player] || null;
+    if (film && irFilm && priorFilm === irFilm && !replacements[player]) {
+      const updatedReplacements = { ...replacements, [player]: film };
+      setReplacements(updatedReplacements);
+      await dbSetReplacements(updatedReplacements);
+    }
     setDraft(prev => ({ ...prev, [player]: prev[player].map((v, i) => i === roundIdx ? film : v) }));
     await dbSetDraftPick(player, roundIdx, film);
   }
@@ -219,7 +231,7 @@ export default function App() {
     return { updated, skipped, notFound };
   }
 
-  async function backfillScoring(onProgress, forceRecheck = false) {
+  async function backfillScoring(onProgress, forceRecheck = false, mode = "all") {
     let boUpdated = 0, boSkipped = 0;
     let rtUpdated = 0, rtSkipped = 0;
     const boNotFound = [], rtNotFound = [];
@@ -245,6 +257,7 @@ export default function App() {
 
       // --- Box office (always fetched — even for manually-unreleased films, to check for a review prompt) ---
       {
+        const boProtected = !!currentScoring.boManual && !!currentScoring.bo; // manually-typed value — don't overwrite unless it's actually missing
         const tmdbResult = await getTMDBBoxOffice(film);
         const revenue = tmdbResult?.revenue;
 
@@ -253,13 +266,17 @@ export default function App() {
 
         if (manuallyUnreleased) {
           console.log(`[Unreleased-check] "${film}" → TMDB match: ${tmdbResult?.tmdbId ? `id ${tmdbResult.tmdbId}` : "none found"} | revenue: ${revenue ?? "none"} | year: ${resolvedReleaseYear ?? "none"}`);
-          if (revenue && isValidRevenue(revenue) && revenue >= BO_MIN_REVENUE) {
+          if (!boProtected && revenue && isValidRevenue(revenue) && revenue >= BO_MIN_REVENUE) {
             candidate.boRaw = revenue;
             candidate.bo = revenueToBoxOfficeTier(revenue);
             candidate.tmdbId = resolvedTmdbId;
             candidate.releaseYear = resolvedReleaseYear;
             resolvedHasBoxOffice = true;
           }
+        } else if (mode === "rt") {
+          // Box office fetch skipped by mode — still resolved tmdbId/releaseYear above for RT's wide-release-date check.
+        } else if (boProtected) {
+          boSkipped++;
         } else if (revenue && isValidRevenue(revenue)) {
           if (revenue < BO_MIN_REVENUE) {
             boTooEarly.push(film);
@@ -320,7 +337,9 @@ export default function App() {
         continue;
       }
 
-      if (!forceRecheck && hasRT) {
+      if (mode === "bo") {
+        // RT fetch skipped by mode entirely for normal (non-manually-unreleased) films.
+      } else if (!forceRecheck && hasRT) {
         rtSkipped++;
       } else {
         let wideReleaseDate = null;
@@ -372,8 +391,8 @@ export default function App() {
     }
 
     const summaryLines = [];
-    if (boUpdated > 0 || boSkipped > 0) summaryLines.push(`Box Office: ${boUpdated} added · ${boSkipped} skipped`);
-    if (rtUpdated > 0 || rtSkipped > 0) summaryLines.push(`RT Scores: ${rtUpdated} added · ${rtSkipped} skipped`);
+    if (mode !== "rt" && (boUpdated > 0 || boSkipped > 0)) summaryLines.push(`Box Office: ${boUpdated} added · ${boSkipped} skipped`);
+    if (mode !== "bo" && (rtUpdated > 0 || rtSkipped > 0)) summaryLines.push(`RT Scores: ${rtUpdated} added · ${rtSkipped} skipped`);
     const summary = summaryLines.join(" | ");
     showToast(summary || "No updates");
     return { boUpdated, boSkipped, boNotFound, rtUpdated, rtSkipped, rtNotFound, boTooEarly, rtTooEarly, unreleasedWithData };
@@ -439,7 +458,7 @@ export default function App() {
           <span style={{ fontSize: 15, fontWeight: 600, color: t.gold }}>🎬</span>
           <span style={{ fontSize: 14, fontWeight: 600, color: t.text }}>Fantasy Film League</span>
           <span style={{ fontSize: 12, color: t.textMuted, borderLeft: `0.5px solid ${t.border}`, paddingLeft: 10 }}>{leagueName}</span>
-          {marxistMode && isCommissioner && <span style={{ fontSize: 11, color: t.red, border: `0.5px solid ${t.red}`, padding: "2px 7px", borderRadius: 4, fontWeight: 600 }}>☭ Marxist Mode</span>}
+          {openScoringMode && isCommissioner && <span style={{ fontSize: 11, color: t.gold, border: `0.5px solid ${t.gold}`, padding: "2px 7px", borderRadius: 4, fontWeight: 600 }}>Open Scoring Mode</span>}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {authUser ? (
@@ -462,11 +481,11 @@ export default function App() {
       </nav>
 
       <main style={{ maxWidth: 880, margin: "0 auto", padding: "1.5rem" }}>
-        {tab === "leaderboard"  && <Leaderboard rankedPlayers={rankedPlayers} getPlayerTotal={getPlayerTotal} draft={draft} scoring={scoringWithMeta} t={t} goToPlayerDraft={goToPlayerDraft} />}
-        {tab === "draft board"  && <DraftBoard draft={draft} players={players} movies={movies} canEdit={canEdit} isCommissioner={isCommissioner} marxistMode={marxistMode} updateDraftPick={updateDraftPick} requireAuth={requireAuth} scoring={scoringWithMeta} goToFilmScoring={goToFilmScoring} t={t} focusPlayer={draftFocusPlayer} addMovie={addMovie} irSlots={irSlots} placeOnIR={placeOnIR} removeFromIR={removeFromIR} />}
+        {tab === "leaderboard"  && <Leaderboard rankedPlayers={rankedPlayers} getPlayerTotal={getPlayerTotal} draft={draft} scoring={scoringWithMeta} t={t} goToPlayerDraft={goToPlayerDraft} irSlots={irSlots} />}
+        {tab === "draft board"  && <DraftBoard draft={draft} players={players} movies={movies} canEdit={canEdit} isCommissioner={isCommissioner} openScoringMode={openScoringMode} updateDraftPick={updateDraftPick} requireAuth={requireAuth} scoring={scoringWithMeta} goToFilmScoring={goToFilmScoring} t={t} focusPlayer={draftFocusPlayer} addMovie={addMovie} irSlots={irSlots} placeOnIR={placeOnIR} removeFromIR={removeFromIR} replacements={replacements} />}
         {tab === "scoring"      && <Scoring scoring={scoringWithMeta} movies={movies} canEdit={canEdit} isCommissioner={isCommissioner} requireAuth={requireAuth} updateScoring={updateScoring} updateScoringMulti={updateScoringMulti} updateScoringRoot={updateScoringRoot} updateOscarField={updateOscarField} updateMovieName={updateMovieName} scoringFilm={scoringFilm} setScoringFilm={setScoringFilm} showToast={showToast} t={t} />}
-        {tab === "settings"     && <Settings movies={movies} players={players} canEdit={canEdit} myPlayerName={myPlayerName} marxistMode={marxistMode} updateMovieName={updateMovieName} addMovie={addMovie} renamePlayer={renamePlayer} t={t} showToast={showToast} requireAuth={requireAuth} isCommissioner={isCommissioner} searchTMDB={searchTMDB} scoring={scoringWithMeta} />}
-        {tab === "commissioner" && isCommissioner && <CommissionerSettings leagueName={leagueName} updateLeagueName={updateLeagueName} marxistMode={marxistMode} toggleMarxistMode={toggleMarxistMode} leagueUsers={leagueUsers} players={players} assignPlayer={assignPlayer} t={t} showToast={showToast} movies={movies} backfillPosters={backfillPosters} backfillScoring={backfillScoring} scoring={scoringWithMeta} deleteMovie={deleteMovie} draft={draft} applyUnreleasedData={applyUnreleasedData} />}
+        {tab === "settings"     && <Settings movies={movies} players={players} canEdit={canEdit} myPlayerName={myPlayerName} openScoringMode={openScoringMode} updateMovieName={updateMovieName} addMovie={addMovie} renamePlayer={renamePlayer} t={t} showToast={showToast} requireAuth={requireAuth} isCommissioner={isCommissioner} searchTMDB={searchTMDB} scoring={scoringWithMeta} />}
+        {tab === "commissioner" && isCommissioner && <CommissionerSettings leagueName={leagueName} updateLeagueName={updateLeagueName} openScoringMode={openScoringMode} toggleOpenScoringMode={toggleOpenScoringMode} leagueUsers={leagueUsers} players={players} assignPlayer={assignPlayer} t={t} showToast={showToast} movies={movies} backfillPosters={backfillPosters} backfillScoring={backfillScoring} scoring={scoringWithMeta} deleteMovie={deleteMovie} draft={draft} applyUnreleasedData={applyUnreleasedData} />}
       </main>
     </div>
   );

@@ -111,7 +111,9 @@ export function Scoring({ scoring, movies, canEdit, isCommissioner, requireAuth,
                 defaultValue={fs.boRaw ? Math.round(fs.boRaw / 1_000_000) : ""}
                 key={film + "-bo"}
                 onBlur={e => {
-                  const millions = parseFloat(e.target.value);
+                  const raw = e.target.value.trim();
+                  if (raw === "") { updateScoringMulti(film, { boRaw: null, bo: "", boManual: false }); return; }
+                  const millions = parseFloat(raw);
                   if (isNaN(millions) || millions <= 0) return;
                   const revenue = Math.round(millions * 1_000_000);
                   // derive tier from BO_TIERS directly
@@ -126,8 +128,8 @@ export function Scoring({ scoring, movies, canEdit, isCommissioner, requireAuth,
                     const tierBn = t2.label.includes("bn") ? v : t2.label.includes("m") ? v/1000 : v;
                     return billions >= tierBn;
                   });
-                  if (tier) updateScoringMulti(film, { boRaw: revenue, bo: tier.label });
-                  else updateScoringMulti(film, { boRaw: revenue });
+                  if (tier) updateScoringMulti(film, { boRaw: revenue, bo: tier.label, boManual: true });
+                  else updateScoringMulti(film, { boRaw: revenue, boManual: true });
                 }}
                 style={{ width: "100%", fontSize: 14, fontWeight: 700, fontFamily: "monospace", textAlign: "center", background: "transparent", border: "none", borderBottom: `1px solid ${t.border}`, color: t.text, outline: "none", padding: "2px 0" }}
               />
@@ -147,7 +149,9 @@ export function Scoring({ scoring, movies, canEdit, isCommissioner, requireAuth,
                 defaultValue={fs.criticsRTRaw != null ? fs.criticsRTRaw : ""}
                 key={film + "-critics"}
                 onBlur={e => {
-                  const score = parseInt(e.target.value);
+                  const raw = e.target.value.trim();
+                  if (raw === "") { updateScoringMulti(film, { criticsRTRaw: null, criticsRT: "" }); return; }
+                  const score = parseInt(raw);
                   if (isNaN(score)) return;
                   const tier = score >= 90 ? "90%+ (7pts)" : score >= 60 ? "Fresh 60-89% (2pts)" : "Rotten (0pts)";
                   updateScoringMulti(film, { criticsRTRaw: score, criticsRT: tier });
@@ -170,7 +174,9 @@ export function Scoring({ scoring, movies, canEdit, isCommissioner, requireAuth,
                 defaultValue={fs.audienceRTRaw != null ? fs.audienceRTRaw : ""}
                 key={film + "-audience"}
                 onBlur={e => {
-                  const score = parseInt(e.target.value);
+                  const raw = e.target.value.trim();
+                  if (raw === "") { updateScoringMulti(film, { audienceRTRaw: null, audienceRT: "" }); return; }
+                  const score = parseInt(raw);
                   if (isNaN(score)) return;
                   const tier = score >= 90 ? "90%+ (5pts)" : "Below 90% (0pts)";
                   updateScoringMulti(film, { audienceRTRaw: score, audienceRT: tier });
@@ -189,7 +195,7 @@ export function Scoring({ scoring, movies, canEdit, isCommissioner, requireAuth,
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
         <Card t={t}>
           <span style={lbl}>Box office</span>
-          <select disabled={!canEdit} value={fs.bo || ""} onChange={e => set("bo", e.target.value)} style={sel}>
+          <select disabled={!canEdit} value={fs.bo || ""} onChange={e => withAuth(() => updateScoringMulti(film, { bo: e.target.value, boManual: !!e.target.value }))} style={sel}>
             <option value="">— select tier —</option>
             {BO_TIERS.map(tier => <option key={tier.label} value={tier.label}>{tier.label} = {tier.pts} pts</option>)}
           </select>

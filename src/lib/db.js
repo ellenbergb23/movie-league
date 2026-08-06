@@ -13,8 +13,8 @@ export async function dbGetPlayers() {
   return v ? JSON.parse(v) : [...DEFAULT_PLAYERS];
 }
 export async function dbGetLeagueName() { return (await dbGet("league_name")) || "The 2026 Film League"; }
-export async function dbGetMarxistMode() { return (await dbGet("marxist_mode")) === "true"; }
-export async function dbSetMarxistMode(val) { await dbSet("marxist_mode", String(val)); }
+export async function dbGetOpenScoringMode() { return (await dbGet("marxist_mode")) === "true"; }
+export async function dbSetOpenScoringMode(val) { await dbSet("marxist_mode", String(val)); }
 export async function dbGetDraft(players) {
   const { data } = await supabase.from("draft_picks").select("*").eq("league_id", LEAGUE_ID);
   const draft = {};
@@ -76,4 +76,11 @@ export async function dbGetIR() {
 }
 export async function dbSetIR(irSlots) {
   await dbSet("ir_slots", JSON.stringify(irSlots));
+}
+export async function dbGetReplacements() {
+  const v = await dbGet("ir_replacements");
+  return v ? JSON.parse(v) : {};
+}
+export async function dbSetReplacements(replacements) {
+  await dbSet("ir_replacements", JSON.stringify(replacements));
 }

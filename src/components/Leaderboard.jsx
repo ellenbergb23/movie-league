@@ -2,7 +2,7 @@ import { PLAYER_COLORS, DEFAULT_PLAYERS } from "../lib/constants";
 import { getPlayerOscarTotals, getPlayerReleaseStats } from "../lib/scoring";
 import { SL, Card, OscarBadge } from "./ui";
 
-export function Leaderboard({ rankedPlayers, getPlayerTotal, draft, scoring, t, goToPlayerDraft }) {
+export function Leaderboard({ rankedPlayers, getPlayerTotal, draft, scoring, t, goToPlayerDraft, irSlots }) {
   const maxPts = Math.max(...rankedPlayers.map(p => getPlayerTotal(p)), 1);
   const medals = ["🥇","🥈","🥉"];
   return (
@@ -14,7 +14,8 @@ export function Leaderboard({ rankedPlayers, getPlayerTotal, draft, scoring, t, 
           const pct = Math.round((pts / maxPts) * 100);
           const color = PLAYER_COLORS[DEFAULT_PLAYERS.indexOf(player) % PLAYER_COLORS.length];
           const { noms, wins } = getPlayerOscarTotals(player, draft, scoring);
-          const { released, unreleased, avgScore } = getPlayerReleaseStats(player, draft, scoring);
+          const irFilm = irSlots?.[player] || null;
+          const { released, unreleased, onIR, avgScore } = getPlayerReleaseStats(player, draft, scoring, irFilm);
           return (
             <Card key={player} t={t}>
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -34,6 +35,12 @@ export function Leaderboard({ rankedPlayers, getPlayerTotal, draft, scoring, t, 
                     <span>{released} released</span>
                     <span>·</span>
                     <span>{unreleased} unreleased</span>
+                    {onIR > 0 && (
+                      <>
+                        <span>·</span>
+                        <span style={{ color: "#B71C1C", fontWeight: 600 }}>{onIR} on IR</span>
+                      </>
+                    )}
                     <span>·</span>
                     <span>avg {avgScore !== null ? avgScore.toFixed(1) : "—"} pts</span>
                   </div>

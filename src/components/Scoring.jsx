@@ -1,14 +1,8 @@
 import { useState, useEffect } from "react";
 import { calcFilmScore, getFilmOscarStatus, isFilmReleased, getBOPoints } from "../lib/scoring";
 import { resolveBOTier, formatBOLabel, getCriticsPoints, getAudiencePoints } from "../lib/scoringRules";
-import { Card, Poster } from "./ui";
-
-function formatRevenue(revenue) {
-  if (!revenue) return "—";
-  if (revenue >= 1_000_000_000) return `$${(revenue / 1_000_000_000).toFixed(2)}bn`;
-  if (revenue >= 1_000_000) return `$${(revenue / 1_000_000).toFixed(1)}m`;
-  return `$${revenue.toLocaleString()}`;
-}
+import { formatRevenue } from "../lib/scoring-utils";
+import { Card, Poster, CollapsibleSL } from "./ui";
 
 export function Scoring({ scoring, movies, canEdit, isCommissioner, requireAuth, updateScoring, updateScoringMulti, updateScoringRoot, updateOscarField, updateMovieName, scoringFilm, setScoringFilm, showToast, fetchFilmScoring, t, rules }) {
   const [film, setFilm] = useState(scoringFilm || movies[0]);
@@ -18,8 +12,16 @@ export function Scoring({ scoring, movies, canEdit, isCommissioner, requireAuth,
   const [filmSearchOpen, setFilmSearchOpen] = useState(false);
   const [overrideManualFilm, setOverrideManualFilm] = useState(false); // false = Fill Auto Scores Only, true = Override Manual Scores
   const [fetchingMode, setFetchingMode] = useState(null); // "bo" | "rt" | "all" | null
+  const [oscarsOpen, setOscarsOpen] = useState(false);
   useEffect(() => { if (scoringFilm) { setFilm(scoringFilm); setFilmSearch(scoringFilm); } }, [scoringFilm]);
   useEffect(() => { window.scrollTo(0, 0); }, [film]);
+  // Auto-expand the Oscars list when the film already has noms/wins recorded, otherwise
+  // start collapsed — the flat category list is long and most films need zero scrolling.
+  useEffect(() => {
+    const fsNow = scoring[film] || {};
+    const hasOscarActivity = Object.values(fsNow.oscarNoms || {}).some(arr => (arr || []).includes(film)) || Object.values(fsNow.oscarWinner || {}).some(w => w === film);
+    setOscarsOpen(hasOscarActivity);
+  }, [film]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fs = scoring[film] || {};
   const total = calcFilmScore(film, scoring, rules);
@@ -213,28 +215,46 @@ export function Scoring({ scoring, movies, canEdit, isCommissioner, requireAuth,
       </Card>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
-        <Card t={t}>
-          <span style={lbl}>Box office</span>
-          <select disabled={!canEdit} value={fs.bo || ""} onChange={e => withAuth(() => updateScoringMulti(film, { bo: e.target.value, boManual: !!e.target.value }))} style={sel}>
-            <option value="">— select tier —</option>
-            {boTiersSorted.map(tier => <option key={tier.millions} value={formatBOLabel(tier.millions)}>{formatBOLabel(tier.millions)}+ = {tier.pts} pts</option>)}
-          </select>
-          {fs.bo && <p style={{ marginTop: 8, fontSize: 13, color: t.gold, fontFamily: "monospace", fontWeight: 600 }}>{getBOPoints(fs.bo, rules)} pts</p>}
-        </Card>
-        <Card t={t}>
-          <span style={lbl}>Rotten tomatoes</span>
-          <label style={{ fontSize: 12, color: t.textMuted, display: "block", marginBottom: 4 }}>Critics</label>
-          <select disabled={!canEdit} value={fs.criticsRTRaw ?? ""} onChange={e => withAuth(() => updateScoringMulti(film, { criticsRTRaw: e.target.value === "" ? null : parseInt(e.target.value) }))} style={{ ...sel, marginBottom: 8 }}>
-            <option value="">— select —</option>
-            {[...(rules.critics?.breakpoints || [])].sort((a, b) => b.min - a.min).map(bp => <option key={bp.min} value={bp.min}>{bp.min}%+ ({bp.pts} pts)</option>)}
-          </select>
-          <label style={{ fontSize: 12, color: t.textMuted, display: "block", marginBottom: 4 }}>Audience</label>
-          <select disabled={!canEdit} value={fs.audienceRTRaw ?? ""} onChange={e => withAuth(() => updateScoringMulti(film, { audienceRTRaw: e.target.value === "" ? null : parseInt(e.target.value) }))} style={sel}>
-            <option value="">— select —</option>
-            {[...(rules.audience?.breakpoints || [])].sort((a, b) => b.min - a.min).map(bp => <option key={bp.min} value={bp.min}>{bp.min}%+ ({bp.pts} pts)</option>)}
-          </select>
-          <p style={{ marginTop: 8, fontSize: 13, color: t.gold, fontFamily: "monospace", fontWeight: 600 }}>{getCriticsPoints(fs.criticsRTRaw, rules) + getAudiencePoints(fs.audienceRTRaw, rules)} pts</p>
-        </Card>
+        {(() => {
+          // Grey out the tier dropdowns until the film actually has stats to work from —
+          // otherwise a fully-Unreleased film shows live-looking dropdowns with nothing behind them.
+          const hasBO = !!(fs.bo || fs.boRaw);
+          const hasRT = fs.criticsRTRaw != null || fs.audienceRTRaw != null;
+          return (
+            <>
+              <Card t={t} style={!hasBO ? { opacity: 0.5 } : {}}>
+                <span style={lbl}>Box office</span>
+                <select disabled={!canEdit || !hasBO} value={fs.bo || ""} onChange={e => withAuth(() => updateScoringMulti(film, { bo: e.target.value, boManual: !!e.target.value }))} style={{ ...sel, cursor: !hasBO ? "not-allowed" : sel.cursor }}>
+                  <option value="">— select tier —</option>
+                  {boTiersSorted.map(tier => <option key={tier.millions} value={formatBOLabel(tier.millions)}>{formatBOLabel(tier.millions)}+ = {tier.pts} pts</option>)}
+                </select>
+                {fs.bo ? (
+                  <p style={{ marginTop: 8, fontSize: 13, color: t.gold, fontFamily: "monospace", fontWeight: 600 }}>{getBOPoints(fs.bo, rules)} pts</p>
+                ) : (
+                  <p style={{ marginTop: 8, fontSize: 11, color: t.textMuted, fontStyle: "italic" }}>Add box office in Stats above to enable</p>
+                )}
+              </Card>
+              <Card t={t} style={!hasRT ? { opacity: 0.5 } : {}}>
+                <span style={lbl}>Rotten tomatoes</span>
+                <label style={{ fontSize: 12, color: t.textMuted, display: "block", marginBottom: 4 }}>Critics</label>
+                <select disabled={!canEdit || !hasRT} value={fs.criticsRTRaw ?? ""} onChange={e => withAuth(() => updateScoringMulti(film, { criticsRTRaw: e.target.value === "" ? null : parseInt(e.target.value) }))} style={{ ...sel, marginBottom: 8, cursor: !hasRT ? "not-allowed" : sel.cursor }}>
+                  <option value="">— select —</option>
+                  {[...(rules.critics?.breakpoints || [])].sort((a, b) => b.min - a.min).map(bp => <option key={bp.min} value={bp.min}>{bp.min}%+ ({bp.pts} pts)</option>)}
+                </select>
+                <label style={{ fontSize: 12, color: t.textMuted, display: "block", marginBottom: 4 }}>Audience</label>
+                <select disabled={!canEdit || !hasRT} value={fs.audienceRTRaw ?? ""} onChange={e => withAuth(() => updateScoringMulti(film, { audienceRTRaw: e.target.value === "" ? null : parseInt(e.target.value) }))} style={{ ...sel, cursor: !hasRT ? "not-allowed" : sel.cursor }}>
+                  <option value="">— select —</option>
+                  {[...(rules.audience?.breakpoints || [])].sort((a, b) => b.min - a.min).map(bp => <option key={bp.min} value={bp.min}>{bp.min}%+ ({bp.pts} pts)</option>)}
+                </select>
+                {hasRT ? (
+                  <p style={{ marginTop: 8, fontSize: 13, color: t.gold, fontFamily: "monospace", fontWeight: 600 }}>{getCriticsPoints(fs.criticsRTRaw, rules) + getAudiencePoints(fs.audienceRTRaw, rules)} pts</p>
+                ) : (
+                  <p style={{ marginTop: 8, fontSize: 11, color: t.textMuted, fontStyle: "italic" }}>Add RT scores in Stats above to enable</p>
+                )}
+              </Card>
+            </>
+          );
+        })()}
       </div>
 
       <Card t={t} style={{ marginBottom: 10 }}>
@@ -267,8 +287,8 @@ export function Scoring({ scoring, movies, canEdit, isCommissioner, requireAuth,
       </Card>
 
       <Card t={t}>
-        <span style={lbl}>Oscar nominations & wins</span>
-        <div style={{ display: "grid", gap: 5 }}>
+        <CollapsibleSL t={t} count={oscarCategories.filter(cat => cat.enabled !== false).length} open={oscarsOpen} onToggle={() => setOscarsOpen(o => !o)}>Oscar nominations & wins</CollapsibleSL>
+        {oscarsOpen && <div style={{ display: "grid", gap: 5 }}>
           {oscarCategories.filter(cat => cat.enabled !== false).map((cat) => {
             const i = oscarCategories.indexOf(cat);
             const isNom = (fs.oscarNoms?.[i] || []).includes(film);
@@ -292,7 +312,7 @@ export function Scoring({ scoring, movies, canEdit, isCommissioner, requireAuth,
               </div>
             );
           })}
-        </div>
+        </div>}
       </Card>
     </div>
   );

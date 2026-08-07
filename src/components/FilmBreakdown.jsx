@@ -7,11 +7,19 @@ import { FONT_SERIF } from "../lib/constants";
 // Read-only scoring breakdown — single source of truth for "how did this film score",
 // shared between the All Films list (inline, view-only) and anywhere else that needs the
 // same summary without the editing controls that live in Scoring.jsx.
-export function FilmBreakdown({ film, scoring, rules, t, onGoToScoring }) {
+export function FilmBreakdown({ film, scoring, rules, t, onGoToScoring, onlyAwardedOscars = false }) {
   const fs = scoring[film] || {};
   const total = calcFilmScore(film, scoring, rules);
   const status = getFilmOscarStatus(film, scoring, rules);
-  const oscarCategories = (rules.oscarCategories || []).filter(cat => cat.enabled !== false);
+  const allOscarCategories = (rules.oscarCategories || []).filter(cat => cat.enabled !== false);
+  const oscarCategories = onlyAwardedOscars
+    ? allOscarCategories.filter(cat => {
+        const i = (rules.oscarCategories || []).indexOf(cat);
+        const isNom = (fs.oscarNoms?.[i] || []).includes(film);
+        const isWin = (fs.oscarWinner?.[i] || "") === film;
+        return isNom || isWin;
+      })
+    : allOscarCategories;
   const released = isFilmReleased(film, scoring);
   const biggestOpening = scoring._biggestOpeningFilm === film;
   const mostNumber1 = scoring._mostNumber1Film === film;
@@ -26,10 +34,15 @@ export function FilmBreakdown({ film, scoring, rules, t, onGoToScoring }) {
 
   return (
     <div>
-      <div style={{ background: status.winner ? t.goldBg : t.surface, border: status.winner ? `2px solid ${t.gold}` : status.nominated ? `1.5px solid ${t.gold}` : `0.5px solid ${t.border}`, borderRadius: 4, padding: "14px 16px", marginBottom: 14 }}>
+      <div style={{ position: "relative", background: status.winner ? t.goldBg : t.surface, border: status.winner ? `2px solid ${t.gold}` : status.nominated ? `1.5px solid ${t.gold}` : `0.5px solid ${t.border}`, borderRadius: 4, padding: "14px 16px", marginBottom: 14 }}>
+        {onGoToScoring && (
+          <button onClick={onGoToScoring} style={{ position: "absolute", top: 10, right: 10, fontSize: 11, padding: "6px 10px", borderRadius: 4, border: `1.5px solid ${t.gold}`, background: "transparent", color: t.gold, cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap" }}>
+            Full scoring page →
+          </button>
+        )}
         <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
           <Poster film={film} scoring={scoring} size="large" t={t} />
-          <div style={{ flex: 1 }}>
+          <div style={{ flex: 1, paddingRight: onGoToScoring ? 110 : 0 }}>
             <div style={{ fontFamily: FONT_SERIF, fontSize: 22, fontWeight: 500, color: t.text, marginBottom: 8 }}>{film}</div>
             <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
               {released ? (
@@ -70,6 +83,9 @@ export function FilmBreakdown({ film, scoring, rules, t, onGoToScoring }) {
 
       <span style={lbl}>Oscar nominations & wins</span>
       <div style={{ display: "grid", gap: 5, marginBottom: 14 }}>
+        {onlyAwardedOscars && oscarCategories.length === 0 && (
+          <p style={{ fontSize: 12, color: t.textMuted, fontStyle: "italic" }}>No nominations or wins.</p>
+        )}
         {oscarCategories.map((cat) => {
           const i = (rules.oscarCategories || []).indexOf(cat);
           const isNom = (fs.oscarNoms?.[i] || []).includes(film);
@@ -88,12 +104,6 @@ export function FilmBreakdown({ film, scoring, rules, t, onGoToScoring }) {
           );
         })}
       </div>
-
-      {onGoToScoring && (
-        <button onClick={onGoToScoring} style={{ width: "100%", fontSize: 13, padding: "10px 16px", borderRadius: 4, border: `1.5px solid ${t.gold}`, background: "transparent", color: t.gold, cursor: "pointer", fontWeight: 600 }}>
-          Go to full scoring page →
-        </button>
-      )}
     </div>
   );
 }

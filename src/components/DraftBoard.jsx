@@ -120,7 +120,7 @@ export function DraftBoard({ draft, players, movies, canEdit, isCommissioner, op
 
             {/* Single grid — picks + IR box all flow together. 7 fixed columns so Rounds 1–7
                 sit on one row and S1/S2 (plus any IR box) wrap to the next. */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(90px, 1fr))", gap: 8 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(110px, 1fr))", gap: 8 }}>
               {picks.map((film, ri) => {
                 const round = ["1","2","3","4","5","6","7","S1","S2"][ri];
                 const isOnIR = film && irFilms.includes(film);
@@ -141,7 +141,7 @@ export function DraftBoard({ draft, players, movies, canEdit, isCommissioner, op
                       <div style={{ fontSize: 9, color: t.textMuted, marginBottom: 4, fontWeight: 600, letterSpacing: "0.06em" }}>RD {round}</div>
                       <div style={{ fontSize: 10, color: t.text, fontWeight: 600, marginBottom: 4, textAlign: "center", lineHeight: 1.2, height: 36, display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
                         {displayFilm
-                          ? displayFilm
+                          ? <span onClick={() => goToFilmScoring(displayFilm)} style={{ cursor: "pointer", textDecoration: "underline", textDecorationColor: "transparent", transition: "text-decoration-color 0.15s" }} onMouseEnter={e => e.currentTarget.style.textDecorationColor = t.gold} onMouseLeave={e => e.currentTarget.style.textDecorationColor = "transparent"}>{displayFilm}</span>
                           : isReplacement
                             ? <span style={{ color: t.gold, fontWeight: 700, fontSize: 9 }}>[replacement]</span>
                             : <span style={{ color: t.textMuted, fontWeight: 400 }}>TBD</span>
@@ -149,7 +149,7 @@ export function DraftBoard({ draft, players, movies, canEdit, isCommissioner, op
                       </div>
                       {displayFilm ? (
                         <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "center" }}>
-                          <Poster film={displayFilm} scoring={scoring} size="small" t={t} />
+                          <Poster film={displayFilm} scoring={scoring} size="draft" t={t} />
                           {score !== null && (
                             <div style={{ width: "100%", textAlign: "center" }}>
                               {isFilmReleased(displayFilm, scoring) ? (
@@ -161,8 +161,8 @@ export function DraftBoard({ draft, players, movies, canEdit, isCommissioner, op
                           )}
                         </div>
                       ) : (
-                        <div style={{ margin: "0 auto", width: 60 }}>
-                          <PlaceholderBox width={60} height={90} t={t} label={isReplacement ? undefined : "empty"} />
+                        <div style={{ margin: "0 auto", width: 80 }}>
+                          <PlaceholderBox width={80} height={120} t={t} label={isReplacement ? undefined : "empty"} />
                         </div>
                       )}
                       {/* Fixed to the bottom of the card, below the score/Unreleased line either way — never overlaps the poster or gets clipped */}
@@ -201,9 +201,6 @@ export function DraftBoard({ draft, players, movies, canEdit, isCommissioner, op
                           add film
                         </button>
                       )
-                    )}
-                    {displayFilm && (
-                      <button onClick={() => goToFilmScoring(displayFilm)} style={{ fontSize: 9, color: t.gold, background: "none", border: "none", cursor: "pointer", padding: 0, fontWeight: 600 }}>scoring →</button>
                     )}
                   </div>
                 );

@@ -57,7 +57,7 @@ export function Poster({ film, scoring, size = "small", t, badge }) {
   const poster_path = fs?.poster_path;
   const poster_url = poster_path ? `https://image.tmdb.org/t/p/w200${poster_path}` : null;
 
-  const sizes = { mini: { width: 26, height: 39 }, small: { width: 60, height: 90 }, large: { width: 100, height: 150 } };
+  const sizes = { mini: { width: 26, height: 39 }, small: { width: 60, height: 90 }, draft: { width: 80, height: 120 }, large: { width: 100, height: 150 } };
   const dimensions = sizes[size] || sizes.small;
 
   const badgeEl = badge ? (

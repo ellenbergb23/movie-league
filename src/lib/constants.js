@@ -16,6 +16,7 @@ export const OSCAR_CATEGORIES = [
   { name: "Best Original Screenplay", nomPts: 3, winPts: 5 },
   { name: "Best Cinematography", nomPts: 3, winPts: 5 },
   { name: "Best Film Editing", nomPts: 3, winPts: 5 },
+  { name: "Best Feature Documentary", nomPts: 1, winPts: 2 },
   { name: "Best Actor in a Supporting Role", nomPts: 1, winPts: 2 },
   { name: "Best Actress in a Supporting Role", nomPts: 1, winPts: 2 },
   { name: "Best Production Design", nomPts: 1, winPts: 2 },

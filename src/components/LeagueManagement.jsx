@@ -32,10 +32,24 @@ function ResetButton({ onClick, t }) {
   );
 }
 
-export function LeagueManagement({ rules, updateScoringRules, onDirtyChange, t, showToast, irConfig, updateIRConfig }) {
+export function LeagueManagement({ rules, updateScoringRules, onDirtyChange, t, showToast, irConfig, updateIRConfig, movies, draftBoard, deleteMovie }) {
   const [draft, setDraft] = useState(() => cloneRules(rules));
   const [pendingMode, setPendingMode] = useState(null); // mode id awaiting confirm
   const [pendingReset, setPendingReset] = useState(null); // { label, path } | null
+  const [filmFilter, setFilmFilter] = useState("");
+  const [confirmRemove, setConfirmRemove] = useState(null); // { film, owner } | null
+
+  // Finds which player currently has this film in a draft board slot, if any.
+  function findDraftOwner(film) {
+    for (const [player, picks] of Object.entries(draftBoard || {})) {
+      if ((picks || []).includes(film)) return player;
+    }
+    return null;
+  }
+  function handleRemoveFilm(film) {
+    setConfirmRemove({ film, owner: findDraftOwner(film) });
+  }
+  const filteredMovies = [...(movies || [])].sort((a, b) => a.localeCompare(b)).filter(f => f.toLowerCase().includes(filmFilter.trim().toLowerCase()));
 
   const dirty = !rulesEqual(draft, rules);
   useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
@@ -135,6 +149,53 @@ export function LeagueManagement({ rules, updateScoringRules, onDirtyChange, t, 
           </div>
         </div>
       )}
+
+      {confirmRemove && (
+        <ConfirmDialog
+          t={t}
+          title={`Remove "${confirmRemove.film}"?`}
+          body={confirmRemove.owner
+            ? `⚠️ Currently drafted by ${confirmRemove.owner}. Removing it will clear that pick from their board, and delete all its scoring data. This can't be undone.`
+            : "This deletes the film and all its scoring data. This can't be undone."}
+          confirmLabel="Remove film"
+          onCancel={() => setConfirmRemove(null)}
+          onConfirm={() => { deleteMovie(confirmRemove.film); setConfirmRemove(null); }}
+        />
+      )}
+
+      <Section title={`Manage Films · ${(movies || []).length}`} t={t}>
+        <p style={{ fontSize: 12, color: t.textMuted, lineHeight: 1.5, marginBottom: 10 }}>
+          Remove films you added by mistake or under the wrong title (e.g. old/misnamed entries). This deletes the film and its data entirely — it will no longer be checked by Fetch scoring.
+        </p>
+        <input
+          value={filmFilter}
+          onChange={e => setFilmFilter(e.target.value)}
+          placeholder="Filter films…"
+          style={{ ...inp, width: "100%", boxSizing: "border-box", marginBottom: 10 }}
+        />
+        <div style={{ maxHeight: 320, overflowY: "auto", border: `0.5px solid ${t.border}`, borderRadius: 8 }}>
+          {filteredMovies.length === 0 && (
+            <div style={{ padding: "12px 14px", fontSize: 12, color: t.textMuted }}>No films match.</div>
+          )}
+          {filteredMovies.map((f, i) => {
+            const owner = findDraftOwner(f);
+            return (
+              <div key={f} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "9px 14px", borderBottom: i < filteredMovies.length - 1 ? `0.5px solid ${t.border}` : "none", background: i % 2 === 0 ? t.surface : t.rowAlt }}>
+                <span style={{ fontSize: 13, color: t.text, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "left" }}>
+                  {f}
+                  {owner && <span style={{ fontSize: 10, color: t.gold, marginLeft: 8, fontWeight: 600 }}>· drafted by {owner}</span>}
+                </span>
+                <button
+                  onClick={() => handleRemoveFilm(f)}
+                  style={{ fontSize: 11, color: t.red, background: "none", border: `0.5px solid ${t.red}`, borderRadius: 6, cursor: "pointer", padding: "3px 8px", flexShrink: 0 }}
+                >
+                  remove
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </Section>
 
       {pendingReset && (
         <ConfirmDialog

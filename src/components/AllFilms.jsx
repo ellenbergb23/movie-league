@@ -58,7 +58,7 @@ export function AllFilms({ movies, scoring, rules, t, goToFilmScoring }) {
               {isOpen && (
                 <div style={{ padding: "0 14px 14px", borderTop: `0.5px solid ${t.border}` }}>
                   <div style={{ paddingTop: 14 }}>
-                    <FilmBreakdown film={film} scoring={scoring} rules={rules} t={t} onGoToScoring={() => goToFilmScoring(film)} />
+                    <FilmBreakdown film={film} scoring={scoring} rules={rules} t={t} onGoToScoring={() => goToFilmScoring(film)} onlyAwardedOscars />
                   </div>
                 </div>
               )}

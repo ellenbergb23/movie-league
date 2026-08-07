@@ -226,6 +226,8 @@ export function LeagueManagement({ rules, updateScoringRules, onDirtyChange, t, 
         />
       )}
 
+      {/* League Scoring — groups all scoring-related subsections under one collapsible section */}
+      <Section title="League Scoring" defaultOpen t={t}>
       {/* League mode */}
       <Section title="League Mode" defaultOpen t={t}>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -252,27 +254,6 @@ export function LeagueManagement({ rules, updateScoringRules, onDirtyChange, t, 
         </div>
         <p style={{ fontSize: 11, color: t.textMuted, marginTop: 10, marginBottom: 0 }}>
           Switching to Classic, Box Office Only, or Oscars Mode resets point values and breakpoints to that mode's defaults. Switching to Custom keeps your current values as-is.
-        </p>
-      </Section>
-
-      {/* IR settings — saved immediately, independent of the Apply/Cancel scoring rules flow above */}
-      <Section title="Injured Reserve" t={t}>
-        <div style={rowStyle}>
-          <Toggle checked={irConfig.enabled} onChange={checked => updateIRConfig({ ...irConfig, enabled: checked })} label="Enable IR" />
-        </div>
-        <div style={{ ...rowStyle, borderBottom: "none" }}>
-          <span style={{ fontSize: 12, color: t.textSub, flex: 1 }}>IR slots per team</span>
-          <select
-            value={irConfig.maxSlots}
-            disabled={!irConfig.enabled}
-            onChange={e => updateIRConfig({ ...irConfig, maxSlots: Number(e.target.value) })}
-            style={{ ...inp, width: 70, cursor: irConfig.enabled ? "pointer" : "default", opacity: irConfig.enabled ? 1 : 0.5 }}
-          >
-            {[1, 2, 3].map(n => <option key={n} value={n}>{n}</option>)}
-          </select>
-        </div>
-        <p style={{ fontSize: 11, color: t.textMuted, marginTop: 10, marginBottom: 0 }}>
-          Turns the IR feature on/off league-wide and sets how many films each team can place on IR at once (up to 3). Lowering this trims any team's IR list down to the new limit.
         </p>
       </Section>
 
@@ -407,7 +388,31 @@ export function LeagueManagement({ rules, updateScoringRules, onDirtyChange, t, 
         ))}
       </Section>
 
-      <Section title="Danger Zone" t={t}>
+      </Section>
+      {/* end League Scoring */}
+
+      {/* IR settings — saved immediately, independent of the Apply/Cancel scoring rules flow above */}
+      <Section title="Injured Reserve" t={t}>
+        <div style={rowStyle}>
+          <Toggle checked={irConfig.enabled} onChange={checked => updateIRConfig({ ...irConfig, enabled: checked })} label="Enable IR" />
+        </div>
+        <div style={{ ...rowStyle, borderBottom: "none" }}>
+          <span style={{ fontSize: 12, color: t.textSub, flex: 1 }}>IR slots per team</span>
+          <select
+            value={irConfig.maxSlots}
+            disabled={!irConfig.enabled}
+            onChange={e => updateIRConfig({ ...irConfig, maxSlots: Number(e.target.value) })}
+            style={{ ...inp, width: 70, cursor: irConfig.enabled ? "pointer" : "default", opacity: irConfig.enabled ? 1 : 0.5 }}
+          >
+            {[1, 2, 3].map(n => <option key={n} value={n}>{n}</option>)}
+          </select>
+        </div>
+        <p style={{ fontSize: 11, color: t.textMuted, marginTop: 10, marginBottom: 0 }}>
+          Turns the IR feature on/off league-wide and sets how many films each team can place on IR at once (up to 3). Lowering this trims any team's IR list down to the new limit.
+        </p>
+      </Section>
+
+      <Section title="Highway to the Danger Zone (Delete the League)" t={t}>
         <p style={{ fontSize: 12, color: t.textMuted, lineHeight: 1.5, marginBottom: 10 }}>
           Permanently deletes this league — all teams, draft picks, scores, and settings. This cannot be undone.
         </p>

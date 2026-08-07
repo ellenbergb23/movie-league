@@ -268,7 +268,7 @@ export function DraftBoard({ draft, players, movies, canEdit, isCommissioner, op
 
                 return (
                   <div key={ri} style={{ position: "relative", display: "flex", flexDirection: "column", gap: 4 }}>
-                    <div style={{ position: "relative", background: winner ? t.goldBg : isEmpty && !isReplacement ? "transparent" : t.surface2, border: winner ? `2px solid ${t.gold}` : nominated ? `1.5px solid ${t.gold}` : isReplacement ? `1px dashed ${t.gold}` : isEmpty ? `1px dashed ${t.border}` : `0.5px solid ${t.border}`, borderRadius: 4, padding: "8px", height: 230, overflow: "hidden" }}>
+                    <div className="ffl-draft-card" style={{ position: "relative", background: winner ? t.goldBg : isEmpty && !isReplacement ? "transparent" : t.surface2, border: winner ? `2px solid ${t.gold}` : nominated ? `1.5px solid ${t.gold}` : isReplacement ? `1px dashed ${t.gold}` : isEmpty ? `1px dashed ${t.border}` : `0.5px solid ${t.border}`, borderRadius: 4, padding: "8px", height: 230, overflow: "hidden" }}>
                       {winner && <span style={{ position: "absolute", top: -1, right: 3, fontSize: 8, background: t.gold, color: "#fff", padding: "1px 4px", borderRadius: "0 0 3px 3px", fontWeight: 700 }}>BP ✦</span>}
                       {nominated && !winner && <span style={{ position: "absolute", top: -1, right: 3, fontSize: 8, background: t.goldBg, color: t.gold, padding: "1px 4px", borderRadius: "0 0 3px 3px", border: `0.5px solid ${t.gold}`, fontWeight: 600 }}>NOM</span>}
                       <div style={{ fontSize: 9, color: t.textMuted, marginBottom: 4, fontWeight: 600, letterSpacing: "0.06em" }}>RD {round}</div>

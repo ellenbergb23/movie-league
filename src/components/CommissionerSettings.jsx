@@ -1,11 +1,10 @@
 import { useState, useEffect } from "react";
-import { SL, CollapsibleSL, Card, ConfirmDialog } from "./ui";
+import { SL, CollapsibleSL, Card } from "./ui";
 
-export function CommissionerSettings({ leagueName, updateLeagueName, openScoringMode, toggleOpenScoringMode, leagueUsers, players, assignPlayer, t, showToast, movies, backfillPosters, backfillScoring, scoring, deleteMovie, draft, applyUnreleasedData }) {
+export function CommissionerSettings({ leagueName, updateLeagueName, openScoringMode, toggleOpenScoringMode, leagueUsers, players, assignPlayer, t, showToast, movies, backfillPosters, backfillScoring, scoring, applyUnreleasedData }) {
   const [editingLeague, setEditingLeague] = useState(false);
   const [leagueVal, setLeagueVal] = useState(leagueName);
   const [copied, setCopied] = useState(false);
-  const [filmFilter, setFilmFilter] = useState("");
   const [posterProgress, setPosterProgress] = useState(null);
   const [posterRunning, setPosterRunning] = useState(false);
   const [posterResults, setPosterResults] = useState(null);
@@ -17,8 +16,6 @@ export function CommissionerSettings({ leagueName, updateLeagueName, openScoring
   const [dismissedUnreleased, setDismissedUnreleased] = useState([]); // films clicked "Remain unreleased" — cleared on next fetch
   const [lastScoringMode, setLastScoringMode] = useState("all");
   const [looksReleasedOpen, setLooksReleasedOpen] = useState(true);
-  const [managedFilmsOpen, setManagedFilmsOpen] = useState(true);
-  const [confirmRemove, setConfirmRemove] = useState(null); // { film, owner } | null
   const [skippedOpen, setSkippedOpen] = useState(false);
 
   async function runBackfill() {
@@ -54,21 +51,6 @@ export function CommissionerSettings({ leagueName, updateLeagueName, openScoring
 
   function copyInvite() { navigator.clipboard.writeText(inviteUrl); setCopied(true); setTimeout(() => setCopied(false), 2000); }
 
-  // Finds which player currently has this film in a draft board slot, if any.
-  function findDraftOwner(film) {
-    for (const [player, picks] of Object.entries(draft || {})) {
-      if ((picks || []).includes(film)) return player;
-    }
-    return null;
-  }
-
-  function handleRemoveFilm(film) {
-    const owner = findDraftOwner(film);
-    setConfirmRemove({ film, owner });
-  }
-
-  const filteredMovies = [...movies].sort((a, b) => a.localeCompare(b)).filter(f => f.toLowerCase().includes(filmFilter.trim().toLowerCase()));
-
   // Merge every skip reason per film into one alphabetically-sorted list — purely informational.
   function buildSkippedFilms(results) {
     if (!results) return [];
@@ -89,18 +71,6 @@ export function CommissionerSettings({ leagueName, updateLeagueName, openScoring
 
   return (
     <div>
-      {confirmRemove && (
-        <ConfirmDialog
-          t={t}
-          title={`Remove "${confirmRemove.film}"?`}
-          body={confirmRemove.owner
-            ? `⚠️ Currently drafted by ${confirmRemove.owner}. Removing it will clear that pick from their board, and delete all its scoring data. This can't be undone.`
-            : "This deletes the film and all its scoring data. This can't be undone."}
-          confirmLabel="Remove film"
-          onCancel={() => setConfirmRemove(null)}
-          onConfirm={() => { deleteMovie(confirmRemove.film); setConfirmRemove(null); }}
-        />
-      )}
       <SL t={t}>film posters</SL>
       <Card t={t} style={{ marginBottom: 24 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -267,45 +237,6 @@ export function CommissionerSettings({ leagueName, updateLeagueName, openScoring
             </Card>
           )}
         </>
-      )}
-
-      <CollapsibleSL t={t} count={movies.length} open={managedFilmsOpen} onToggle={() => setManagedFilmsOpen(o => !o)}>
-        manage films
-      </CollapsibleSL>
-      {managedFilmsOpen && (
-        <Card t={t} style={{ marginBottom: 24 }}>
-          <p style={{ fontSize: 12, color: t.textMuted, lineHeight: 1.5, marginBottom: 10 }}>
-            Remove films you added by mistake or under the wrong title (e.g. old/misnamed entries). This deletes the film and its data entirely — it will no longer be checked by Fetch scoring.
-          </p>
-          <input
-            value={filmFilter}
-            onChange={e => setFilmFilter(e.target.value)}
-            placeholder="Filter films…"
-            style={{ ...inp, width: "100%", boxSizing: "border-box", marginBottom: 10 }}
-          />
-          <div style={{ maxHeight: 320, overflowY: "auto", border: `0.5px solid ${t.border}`, borderRadius: 8 }}>
-            {filteredMovies.length === 0 && (
-              <div style={{ padding: "12px 14px", fontSize: 12, color: t.textMuted }}>No films match.</div>
-            )}
-            {filteredMovies.map((f, i) => {
-              const owner = findDraftOwner(f);
-              return (
-                <div key={f} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "9px 14px", borderBottom: i < filteredMovies.length - 1 ? `0.5px solid ${t.border}` : "none", background: i % 2 === 0 ? t.surface : t.rowAlt }}>
-                  <span style={{ fontSize: 13, color: t.text, flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "left" }}>
-                    {f}
-                    {owner && <span style={{ fontSize: 10, color: t.gold, marginLeft: 8, fontWeight: 600 }}>· drafted by {owner}</span>}
-                  </span>
-                  <button
-                    onClick={() => handleRemoveFilm(f)}
-                    style={{ fontSize: 11, color: t.red, background: "none", border: `0.5px solid ${t.red}`, borderRadius: 6, cursor: "pointer", padding: "3px 8px", flexShrink: 0 }}
-                  >
-                    remove
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        </Card>
       )}
 
       <SL t={t}>scoring mode</SL>

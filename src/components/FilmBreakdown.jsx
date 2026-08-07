@@ -7,7 +7,7 @@ import { FONT_SERIF } from "../lib/constants";
 // Read-only scoring breakdown — single source of truth for "how did this film score",
 // shared between the All Films list (inline, view-only) and anywhere else that needs the
 // same summary without the editing controls that live in Scoring.jsx.
-export function FilmBreakdown({ film, scoring, rules, t, onGoToScoring, onlyAwardedOscars = false }) {
+export function FilmBreakdown({ film, scoring, rules, t, onGoToScoring, onlyAwardedOscars = false, onlyAwardedBadges = false }) {
   const fs = scoring[film] || {};
   const total = calcFilmScore(film, scoring, rules);
   const status = getFilmOscarStatus(film, scoring, rules);
@@ -30,6 +30,11 @@ export function FilmBreakdown({ film, scoring, rules, t, onGoToScoring, onlyAwar
       <span style={{ fontSize: 13, color: t.text }}>{label}</span>
       <span style={{ fontSize: 12, fontWeight: 600, color: awarded ? t.gold : t.textMuted }}>{awarded ? "Awarded · +1 pt" : "Not awarded"}</span>
     </div>
+  );
+  const badge = (label) => (
+    <span key={label} style={{ fontSize: 12, fontWeight: 600, color: t.gold, background: t.goldBg, border: `1px solid ${t.gold}`, borderRadius: 4, padding: "5px 10px", whiteSpace: "nowrap" }}>
+      {label} · +1 pt
+    </span>
   );
 
   return (
@@ -77,11 +82,26 @@ export function FilmBreakdown({ film, scoring, rules, t, onGoToScoring, onlyAwar
         </Card>
       </div>
 
-      <div style={{ display: "grid", gap: 8, marginBottom: 14 }}>
-        {row("Seen film", !!fs.seenFilm)}
-        {row("Biggest opening weekend", biggestOpening)}
-        {row("Most #1 box office weeks", mostNumber1)}
-      </div>
+      {(() => {
+        const awards = [
+          { label: "Seen film", awarded: !!fs.seenFilm },
+          { label: "Biggest opening weekend", awarded: biggestOpening },
+          { label: "Most #1 box office weeks", awarded: mostNumber1 },
+        ];
+        if (onlyAwardedBadges) {
+          const earned = awards.filter(a => a.awarded);
+          return earned.length > 0 ? (
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 14 }}>
+              {earned.map(a => badge(a.label))}
+            </div>
+          ) : null;
+        }
+        return (
+          <div style={{ display: "grid", gap: 8, marginBottom: 14 }}>
+            {awards.map(a => row(a.label, a.awarded))}
+          </div>
+        );
+      })()}
 
       <span style={lbl}>Oscar nominations & wins</span>
       <div style={{ display: "grid", gap: 5, marginBottom: 14 }}>

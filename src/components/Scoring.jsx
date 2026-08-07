@@ -95,7 +95,16 @@ export function Scoring({ scoring, movies, canEdit, isCommissioner, requireAuth,
           <div style={{ flex: 1 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
               <span style={{ fontSize: 18, fontWeight: 600, color: t.text }}>{film}</span>
-              {(canEdit || isCommissioner) && !renaming && <button onClick={() => withAuth(() => { setRenaming(true); setRenameVal(film); })} style={{ fontSize: 11, color: t.textMuted, background: "none", border: `0.5px solid ${t.border}`, borderRadius: 5, cursor: "pointer", padding: "3px 8px", flexShrink: 0 }}>rename</button>}
+              {(canEdit || isCommissioner) && !renaming && (
+                <button
+                  onClick={() => withAuth(() => { setRenaming(true); setRenameVal(film); })}
+                  onMouseEnter={e => { e.currentTarget.style.background = t.gold; e.currentTarget.style.borderColor = t.gold; e.currentTarget.style.color = "#1D1B18"; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = "none"; e.currentTarget.style.borderColor = t.border; e.currentTarget.style.color = t.textMuted; }}
+                  style={{ fontSize: 11, color: t.textMuted, background: "none", border: `0.5px solid ${t.border}`, borderRadius: 5, cursor: "pointer", padding: "3px 8px", flexShrink: 0, transition: "background 0.15s, border-color 0.15s, color 0.15s" }}
+                >
+                  rename
+                </button>
+              )}
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               {isFilmReleased(film, scoring) ? (
@@ -261,16 +270,18 @@ export function Scoring({ scoring, movies, canEdit, isCommissioner, requireAuth,
               </Card>
               <Card t={t} style={!hasRT ? { opacity: 0.5 } : {}}>
                 <span style={lbl}>Rotten tomatoes</span>
-                <label style={{ fontSize: 12, color: t.textMuted, display: "block", marginBottom: 4 }}>Critics</label>
-                <select disabled={!canEdit || !hasRT} value={fs.criticsRTRaw ?? ""} onChange={e => withAuth(() => updateScoringMulti(film, { criticsRTRaw: e.target.value === "" ? null : parseInt(e.target.value) }))} style={{ ...sel, marginBottom: 8, cursor: !hasRT ? "not-allowed" : sel.cursor }}>
-                  <option value="">— select —</option>
-                  {[...(rules.critics?.breakpoints || [])].sort((a, b) => b.min - a.min).map(bp => <option key={bp.min} value={bp.min}>{bp.min}%+ ({bp.pts} pts)</option>)}
-                </select>
-                <label style={{ fontSize: 12, color: t.textMuted, display: "block", marginBottom: 4 }}>Audience</label>
-                <select disabled={!canEdit || !hasRT} value={fs.audienceRTRaw ?? ""} onChange={e => withAuth(() => updateScoringMulti(film, { audienceRTRaw: e.target.value === "" ? null : parseInt(e.target.value) }))} style={{ ...sel, cursor: !hasRT ? "not-allowed" : sel.cursor }}>
-                  <option value="">— select —</option>
-                  {[...(rules.audience?.breakpoints || [])].sort((a, b) => b.min - a.min).map(bp => <option key={bp.min} value={bp.min}>{bp.min}%+ ({bp.pts} pts)</option>)}
-                </select>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                  <span style={{ fontSize: 12, color: t.textMuted }}>Critics</span>
+                  <span style={{ fontSize: 13, fontFamily: "monospace", fontWeight: 600, color: fs.criticsRTRaw != null ? t.gold : t.textMuted }}>
+                    {fs.criticsRTRaw != null ? `${fs.criticsRTRaw}% (+${getCriticsPoints(fs.criticsRTRaw, rules)})` : "—"}
+                  </span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: 12, color: t.textMuted }}>Audience</span>
+                  <span style={{ fontSize: 13, fontFamily: "monospace", fontWeight: 600, color: fs.audienceRTRaw != null ? t.gold : t.textMuted }}>
+                    {fs.audienceRTRaw != null ? `${fs.audienceRTRaw}% (+${getAudiencePoints(fs.audienceRTRaw, rules)})` : "—"}
+                  </span>
+                </div>
                 {hasRT ? (
                   <p style={{ marginTop: 8, fontSize: 13, color: t.gold, fontFamily: "monospace", fontWeight: 600 }}>{getCriticsPoints(fs.criticsRTRaw, rules) + getAudiencePoints(fs.audienceRTRaw, rules)} pts</p>
                 ) : (

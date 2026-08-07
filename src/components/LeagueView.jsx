@@ -6,7 +6,7 @@ import { searchTMDB, getTMDBBoxOffice, getTMDBWideReleaseDate } from "../lib/tmd
 import { getOMDbData, extractRTScores } from "../lib/omdb";
 import { revenueToBoxOfficeTier, isValidRevenue } from "../lib/scoring-utils";
 import {
-  dbSet, dbGetPlayers, dbGetLeagueName, dbGetOpenScoringMode, dbSetOpenScoringMode,
+  dbSet, dbGetPlayers, dbGetLeagueName, dbRenameLeague, dbGetOpenScoringMode, dbSetOpenScoringMode,
   dbGetDraft, dbSetDraftPick, dbGetScores, dbSetScore, dbGetMovies, dbAddMovie,
   dbDeleteMovie, dbRenameMovie, dbRenamePlayer, dbGetLeagueUsers, dbAssignPlayer, dbGetCurrentUser,
   dbGetIR, dbSetIR, dbGetReplacements, dbSetReplacements,
@@ -157,7 +157,7 @@ export default function LeagueView({ leagueId, authUser, darkMode, toggleDark, s
     showToast(next ? "Open Scoring Mode enabled" : "Commissioner Scoring Mode enabled");
   }
 
-  async function updateLeagueName(name) { setLeagueName(name); await dbSet(leagueId, "league_name", name); showToast("Saved"); }
+  async function updateLeagueName(name) { setLeagueName(name); await dbRenameLeague(leagueId, name); showToast("Saved"); }
   async function handleDeleteLeague() {
     await dbDeleteLeague(leagueId);
     navigate("/");
@@ -727,7 +727,7 @@ export default function LeagueView({ leagueId, authUser, darkMode, toggleDark, s
 
       <main style={{ maxWidth: 900, margin: "0 auto", padding: "1.5rem" }}>
         {tab === "leaderboard"  && <Leaderboard rankedPlayers={rankedPlayers} getPlayerTotal={getPlayerTotal} draft={draft} scoring={scoringWithMeta} t={t} goToPlayerDraft={goToPlayerDraft} irSlots={irSlots} rules={scoringRules} />}
-        {tab === "draft board"  && <DraftBoard draft={draft} players={players} movies={movies} canEdit={canEdit} isCommissioner={isCommissioner} openScoringMode={openScoringMode} updateDraftPick={updateDraftPick} requireAuth={requireAuth} scoring={scoringWithMeta} goToFilmScoring={goToFilmScoring} t={t} focusPlayer={draftFocusPlayer} addMovie={addMovie} irSlots={irSlots} placeOnIR={placeOnIR} removeFromIR={removeFromIR} replacements={replacements} rules={scoringRules} irConfig={irConfig} />}
+        {tab === "draft board"  && <DraftBoard draft={draft} players={players} movies={movies} canEdit={canEdit} isCommissioner={isCommissioner} openScoringMode={openScoringMode} updateDraftPick={updateDraftPick} requireAuth={requireAuth} scoring={scoringWithMeta} goToFilmScoring={goToFilmScoring} t={t} focusPlayer={draftFocusPlayer} addMovie={addMovie} irSlots={irSlots} placeOnIR={placeOnIR} removeFromIR={removeFromIR} replacements={replacements} rules={scoringRules} irConfig={irConfig} myPlayerName={myPlayerName} />}
         {tab === "all films"    && <AllFilms movies={movies} scoring={scoringWithMeta} rules={scoringRules} t={t} goToFilmScoring={goToFilmScoring} />}
         {tab === "scoring"      && <Scoring scoring={scoringWithMeta} movies={movies} canEdit={canEdit} isCommissioner={isCommissioner} requireAuth={requireAuth} updateScoring={updateScoring} updateScoringMulti={updateScoringMulti} updateScoringRoot={updateScoringRoot} updateOscarField={updateOscarField} updateMovieName={updateMovieName} scoringFilm={scoringFilm} setScoringFilm={setScoringFilm} showToast={showToast} fetchFilmScoring={fetchFilmScoring} t={t} rules={scoringRules} />}
         {tab === "settings"     && <Settings movies={movies} players={players} canEdit={canEdit} myPlayerName={myPlayerName} openScoringMode={openScoringMode} updateMovieName={updateMovieName} addMovie={addMovie} renamePlayer={renamePlayer} t={t} showToast={showToast} requireAuth={requireAuth} isCommissioner={isCommissioner} searchTMDB={searchTMDB} scoring={scoringWithMeta} />}

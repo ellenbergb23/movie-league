@@ -4,7 +4,7 @@ import { calcFilmScore, getFilmOscarStatus, isFilmReleased, getFilmScoreBreakdow
 import { searchTMDB } from "../lib/tmdb";
 import { SL, Card, Poster, ConfirmDialog, PlaceholderBox } from "./ui";
 
-export function DraftBoard({ draft, players, movies, canEdit, isCommissioner, openScoringMode, updateDraftPick, scoring, goToFilmScoring, t, focusPlayer, addMovie, irSlots, placeOnIR, removeFromIR, replacements, rules, irConfig }) {
+export function DraftBoard({ draft, players, movies, canEdit, isCommissioner, openScoringMode, updateDraftPick, scoring, goToFilmScoring, t, focusPlayer, addMovie, irSlots, placeOnIR, removeFromIR, replacements, rules, irConfig, myPlayerName }) {
   const sel = { width: "100%", fontSize: 11, padding: "4px 6px", borderRadius: 6, border: `0.5px solid ${t.border}`, background: t.selectBg, color: t.text, cursor: "pointer" };
   const [editingSlot, setEditingSlot] = useState(null);
   const [swapQuery, setSwapQuery] = useState("");
@@ -87,6 +87,11 @@ export function DraftBoard({ draft, players, movies, canEdit, isCommissioner, op
     );
   }
 
+  // Your own team, if you have one in this league, shown first.
+  const orderedPlayers = myPlayerName && players.includes(myPlayerName)
+    ? [myPlayerName, ...players.filter(p => p !== myPlayerName)]
+    : players;
+
   return (
     <div>
       {confirmIR && (
@@ -101,7 +106,10 @@ export function DraftBoard({ draft, players, movies, canEdit, isCommissioner, op
       )}
 
       <SL t={t}>2026 Draft Board</SL>
-      {players.map((player, pi) => {
+      {orderedPlayers.map((player) => {
+        // Color stays tied to the roster's stored order, not display order,
+        // so a card's color doesn't change depending on who's viewing.
+        const pi = players.indexOf(player);
         const color = PLAYER_COLORS[pi % PLAYER_COLORS.length];
         const picks = draft[player] || Array(9).fill("");
         const irFilms = irSlots?.[player] || [];

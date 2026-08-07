@@ -13,7 +13,26 @@ export async function dbGetPlayers(leagueId) {
   const v = await dbGet(leagueId, "players");
   return v ? JSON.parse(v) : [...DEFAULT_PLAYERS];
 }
-export async function dbGetLeagueName(leagueId) { return (await dbGet(leagueId, "league_name")) || "The 2026 Film League"; }
+// League name now lives on leagues.name (the same column dbGetUserLeagues
+// reads for the LeagueSwitcher/YourLeagues list), not the settings table —
+// see dbRenameLeague below.
+export async function dbGetLeagueName(leagueId) {
+  const { data, error } = await supabase.from("leagues").select("name").eq("id", leagueId).single();
+  if (error) return "The 2026 Film League";
+  return data?.name || "The 2026 Film League";
+}
+// Commissioner renames the league (see rename_league in the migration —
+// SECURITY DEFINER, checks server-side that the caller is that league's
+// commissioner before updating leagues.name). This replaces a prior
+// settings-table write, which was a different, unrelated copy of the name
+// that LeagueSwitcher/YourLeagues never read.
+export async function dbRenameLeague(leagueId, name) {
+  const { error } = await supabase.rpc("rename_league", {
+    p_league_id: leagueId,
+    p_name: name,
+  });
+  if (error) throw error;
+}
 export async function dbGetJoinCode(leagueId) {
   const { data, error } = await supabase.from("leagues").select("join_code").eq("id", leagueId).single();
   if (error) return null;

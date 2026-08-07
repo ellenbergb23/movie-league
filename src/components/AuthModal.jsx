@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { supabase, LEAGUE_ID } from "../lib/supabase";
+import { supabase } from "../lib/supabase";
 
-export function AuthModal({ t, onAuth, onClose }) {
+export function AuthModal({ t, onAuth, onClose, leagueId }) {
   const [mode, setMode] = useState("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -18,7 +18,9 @@ export function AuthModal({ t, onAuth, onClose }) {
       const { data, error: err } = await supabase.auth.signUp({ email, password });
       if (err) { setError(err.message); setLoading(false); return; }
       if (data.user) {
-        await supabase.from("league_members").upsert({ user_id: data.user.id, league_id: LEAGUE_ID, player_name: null, role: "player" }, { onConflict: "user_id,league_id" });
+        if (leagueId) {
+          await supabase.from("league_members").upsert({ user_id: data.user.id, league_id: leagueId, player_name: null, role: "player" }, { onConflict: "user_id,league_id" });
+        }
         onAuth(data.user);
       }
     }
@@ -47,7 +49,7 @@ export function AuthModal({ t, onAuth, onClose }) {
         <button onClick={handleSubmit} disabled={loading} style={{ width: "100%", padding: "11px 0", fontSize: 14, fontWeight: 600, color: "#fff", background: t.gold, border: "none", borderRadius: 8, cursor: loading ? "default" : "pointer", opacity: loading ? 0.7 : 1 }}>
           {loading ? "…" : mode === "login" ? "Log in" : "Create account"}
         </button>
-        {mode === "signup" && <p style={{ fontSize: 12, color: t.textMuted, textAlign: "center", marginTop: 12, lineHeight: 1.5 }}>After signing up, the commissioner will assign you to your team.</p>}
+        {mode === "signup" && leagueId && <p style={{ fontSize: 12, color: t.textMuted, textAlign: "center", marginTop: 12, lineHeight: 1.5 }}>After signing up, the commissioner will assign you to your team.</p>}
       </div>
     </div>
   );

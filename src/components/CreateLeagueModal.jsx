@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { supabase } from "../lib/supabase";
 import { dbCreateLeague } from "../lib/db";
+import { leaguePath } from "../lib/router";
 
-export function CreateLeagueModal({ t, authUser, onAuth, onClose, showToast }) {
+export function CreateLeagueModal({ t, authUser, onAuth, onClose, showToast, navigate }) {
   const [name, setName] = useState("");
   const [teamCount, setTeamCount] = useState(10);
   const [filmsPerTeam, setFilmsPerTeam] = useState(9);
@@ -84,13 +85,13 @@ export function CreateLeagueModal({ t, authUser, onAuth, onClose, showToast }) {
           <>
             <h2 style={{ fontSize: 16, fontWeight: 700, color: t.text, marginBottom: 8 }}>League created 🎬</h2>
             <p style={{ fontSize: 13, color: t.textMuted, marginBottom: 20 }}>
-              Share this join code with your players. (Joining isn't wired up in the app yet — this step is just confirming league creation works.)
+              Share this join code with your players. (Joining by code isn't wired up in the app yet — that's coming next.)
             </p>
             <div style={{ textAlign: "center", padding: "16px 0", background: t.surface2, borderRadius: 8, marginBottom: 20 }}>
               <div style={{ fontSize: 24, fontWeight: 700, letterSpacing: "0.15em", color: t.gold, fontFamily: "monospace" }}>{result.joinCode}</div>
             </div>
-            <button onClick={onClose} style={{ width: "100%", padding: "11px 0", fontSize: 14, fontWeight: 600, color: "#fff", background: t.gold, border: "none", borderRadius: 8, cursor: "pointer" }}>
-              Done
+            <button onClick={() => { onClose(); navigate?.(leaguePath(result.id)); }} style={{ width: "100%", padding: "11px 0", fontSize: 14, fontWeight: 600, color: "#fff", background: t.gold, border: "none", borderRadius: 8, cursor: "pointer" }}>
+              Go to league
             </button>
           </>
         )}

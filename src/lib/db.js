@@ -1,95 +1,95 @@
-import { supabase, LEAGUE_ID } from "./supabase";
+import { supabase } from "./supabase";
 import { DEFAULT_PLAYERS, DEFAULT_IR_CONFIG } from "./constants";
 import { normalizeRules, defaultScoringRules } from "./scoringRules";
 
-export async function dbGet(key) {
-  const { data } = await supabase.from("settings").select("value").eq("league_id", LEAGUE_ID).eq("key", key).maybeSingle();
+export async function dbGet(leagueId, key) {
+  const { data } = await supabase.from("settings").select("value").eq("league_id", leagueId).eq("key", key).maybeSingle();
   return data?.value;
 }
-export async function dbSet(key, value) {
-  await supabase.from("settings").upsert({ league_id: LEAGUE_ID, key, value }, { onConflict: "league_id,key" });
+export async function dbSet(leagueId, key, value) {
+  await supabase.from("settings").upsert({ league_id: leagueId, key, value }, { onConflict: "league_id,key" });
 }
-export async function dbGetPlayers() {
-  const v = await dbGet("players");
+export async function dbGetPlayers(leagueId) {
+  const v = await dbGet(leagueId, "players");
   return v ? JSON.parse(v) : [...DEFAULT_PLAYERS];
 }
-export async function dbGetLeagueName() { return (await dbGet("league_name")) || "The 2026 Film League"; }
-export async function dbGetOpenScoringMode() { return (await dbGet("marxist_mode")) === "true"; }
-export async function dbSetOpenScoringMode(val) { await dbSet("marxist_mode", String(val)); }
-export async function dbGetDraft(players) {
-  const { data } = await supabase.from("draft_picks").select("*").eq("league_id", LEAGUE_ID);
+export async function dbGetLeagueName(leagueId) { return (await dbGet(leagueId, "league_name")) || "The 2026 Film League"; }
+export async function dbGetOpenScoringMode(leagueId) { return (await dbGet(leagueId, "marxist_mode")) === "true"; }
+export async function dbSetOpenScoringMode(leagueId, val) { await dbSet(leagueId, "marxist_mode", String(val)); }
+export async function dbGetDraft(leagueId, players) {
+  const { data } = await supabase.from("draft_picks").select("*").eq("league_id", leagueId);
   const draft = {};
   players.forEach(p => { draft[p] = Array(9).fill(""); });
   (data || []).forEach(row => { if (draft[row.player_name] !== undefined) draft[row.player_name][row.round_index] = row.film || ""; });
   return draft;
 }
-export async function dbSetDraftPick(player, roundIdx, film) {
-  await supabase.from("draft_picks").upsert({ league_id: LEAGUE_ID, player_name: player, round_index: roundIdx, film }, { onConflict: "league_id,player_name,round_index" });
+export async function dbSetDraftPick(leagueId, player, roundIdx, film) {
+  await supabase.from("draft_picks").upsert({ league_id: leagueId, player_name: player, round_index: roundIdx, film }, { onConflict: "league_id,player_name,round_index" });
 }
-export async function dbGetScores() {
-  const { data } = await supabase.from("scores").select("*").eq("league_id", LEAGUE_ID);
+export async function dbGetScores(leagueId) {
+  const { data } = await supabase.from("scores").select("*").eq("league_id", leagueId);
   const scoring = {};
   (data || []).forEach(row => { scoring[row.film] = row.data; });
   return scoring;
 }
-export async function dbSetScore(film, data) {
-  await supabase.from("scores").upsert({ league_id: LEAGUE_ID, film, data, updated_at: new Date().toISOString() }, { onConflict: "league_id,film" });
+export async function dbSetScore(leagueId, film, data) {
+  await supabase.from("scores").upsert({ league_id: leagueId, film, data, updated_at: new Date().toISOString() }, { onConflict: "league_id,film" });
 }
-export async function dbGetMovies() {
-  const { data } = await supabase.from("movies").select("title").eq("league_id", LEAGUE_ID).order("created_at");
+export async function dbGetMovies(leagueId) {
+  const { data } = await supabase.from("movies").select("title").eq("league_id", leagueId).order("created_at");
   return data?.map(r => r.title) || [];
 }
-export async function dbAddMovie(title) { await supabase.from("movies").insert({ league_id: LEAGUE_ID, title }); }
-export async function dbDeleteMovie(title) {
-  await supabase.from("movies").delete().eq("league_id", LEAGUE_ID).eq("title", title);
-  await supabase.from("scores").delete().eq("league_id", LEAGUE_ID).eq("film", title);
+export async function dbAddMovie(leagueId, title) { await supabase.from("movies").insert({ league_id: leagueId, title }); }
+export async function dbDeleteMovie(leagueId, title) {
+  await supabase.from("movies").delete().eq("league_id", leagueId).eq("title", title);
+  await supabase.from("scores").delete().eq("league_id", leagueId).eq("film", title);
 }
-export async function dbRenameMovie(oldTitle, newTitle) {
-  await supabase.from("movies").update({ title: newTitle }).eq("league_id", LEAGUE_ID).eq("title", oldTitle);
-  await supabase.from("draft_picks").update({ film: newTitle }).eq("league_id", LEAGUE_ID).eq("film", oldTitle);
-  const { data } = await supabase.from("scores").select("data").eq("league_id", LEAGUE_ID).eq("film", oldTitle).single();
+export async function dbRenameMovie(leagueId, oldTitle, newTitle) {
+  await supabase.from("movies").update({ title: newTitle }).eq("league_id", leagueId).eq("title", oldTitle);
+  await supabase.from("draft_picks").update({ film: newTitle }).eq("league_id", leagueId).eq("film", oldTitle);
+  const { data } = await supabase.from("scores").select("data").eq("league_id", leagueId).eq("film", oldTitle).single();
   if (data) {
-    await supabase.from("scores").upsert({ league_id: LEAGUE_ID, film: newTitle, data: data.data, updated_at: new Date().toISOString() }, { onConflict: "league_id,film" });
-    await supabase.from("scores").delete().eq("league_id", LEAGUE_ID).eq("film", oldTitle);
+    await supabase.from("scores").upsert({ league_id: leagueId, film: newTitle, data: data.data, updated_at: new Date().toISOString() }, { onConflict: "league_id,film" });
+    await supabase.from("scores").delete().eq("league_id", leagueId).eq("film", oldTitle);
   }
 }
-export async function dbRenamePlayer(oldName, newName, players) {
-  await supabase.from("draft_picks").update({ player_name: newName }).eq("league_id", LEAGUE_ID).eq("player_name", oldName);
+export async function dbRenamePlayer(leagueId, oldName, newName, players) {
+  await supabase.from("draft_picks").update({ player_name: newName }).eq("league_id", leagueId).eq("player_name", oldName);
   const newPlayers = players.map(p => p === oldName ? newName : p);
-  await dbSet("players", JSON.stringify(newPlayers));
-  await supabase.from("league_members").update({ player_name: newName }).eq("league_id", LEAGUE_ID).eq("player_name", oldName);
+  await dbSet(leagueId, "players", JSON.stringify(newPlayers));
+  await supabase.from("league_members").update({ player_name: newName }).eq("league_id", leagueId).eq("player_name", oldName);
   return newPlayers;
 }
-export async function dbGetLeagueUsers() {
-  const { data } = await supabase.from("league_members").select("*").eq("league_id", LEAGUE_ID);
-  // alias user_id -> id so existing callers (App.jsx) that match rows by `.id` keep working
+export async function dbGetLeagueUsers(leagueId) {
+  const { data } = await supabase.from("league_members").select("*").eq("league_id", leagueId);
+  // alias user_id -> id so existing callers (LeagueView.jsx) that match rows by `.id` keep working
   return (data || []).map(row => ({ ...row, id: row.user_id }));
 }
-export async function dbAssignPlayer(userId, playerName) {
-  await supabase.from("league_members").update({ player_name: playerName }).eq("user_id", userId).eq("league_id", LEAGUE_ID);
+export async function dbAssignPlayer(leagueId, userId, playerName) {
+  await supabase.from("league_members").update({ player_name: playerName }).eq("user_id", userId).eq("league_id", leagueId);
 }
-export async function dbGetCurrentUser(userId) {
-  const { data } = await supabase.from("league_members").select("*").eq("user_id", userId).eq("league_id", LEAGUE_ID).maybeSingle();
+export async function dbGetCurrentUser(leagueId, userId) {
+  const { data } = await supabase.from("league_members").select("*").eq("user_id", userId).eq("league_id", leagueId).maybeSingle();
   return data ? { ...data, id: data.user_id } : data;
 }
-export async function dbGetIR() {
-  const v = await dbGet("ir_slots");
+export async function dbGetIR(leagueId) {
+  const v = await dbGet(leagueId, "ir_slots");
   return v ? JSON.parse(v) : {};
 }
-export async function dbSetIR(irSlots) {
-  await dbSet("ir_slots", JSON.stringify(irSlots));
+export async function dbSetIR(leagueId, irSlots) {
+  await dbSet(leagueId, "ir_slots", JSON.stringify(irSlots));
 }
-export async function dbGetScoringRules() {
-  const v = await dbGet("scoring_rules");
+export async function dbGetScoringRules(leagueId) {
+  const v = await dbGet(leagueId, "scoring_rules");
   return v ? normalizeRules(JSON.parse(v)) : defaultScoringRules();
 }
-export async function dbSetScoringRules(rules) { await dbSet("scoring_rules", JSON.stringify(rules)); }
-export async function dbGetReplacements() {
-  const v = await dbGet("ir_replacements");
+export async function dbSetScoringRules(leagueId, rules) { await dbSet(leagueId, "scoring_rules", JSON.stringify(rules)); }
+export async function dbGetReplacements(leagueId) {
+  const v = await dbGet(leagueId, "ir_replacements");
   return v ? JSON.parse(v) : {};
 }
-export async function dbSetReplacements(replacements) {
-  await dbSet("ir_replacements", JSON.stringify(replacements));
+export async function dbSetReplacements(leagueId, replacements) {
+  await dbSet(leagueId, "ir_replacements", JSON.stringify(replacements));
 }
 // Creates a new league: the creating user becomes commissioner and occupies
 // one of the team_count slots; the remaining (team_count - 1) slots are
@@ -99,6 +99,7 @@ export async function dbSetReplacements(replacements) {
 // entirely, since the function creates both rows in one transaction with
 // elevated privileges internally, deriving the creator from auth.uid()
 // server-side (can't be spoofed by the client).
+// Not league-scoped by definition — it CREATES a league — so no leagueId argument.
 export async function dbCreateLeague({ name, teamCount, filmsPerTeam, visibility }) {
   const { data, error } = await supabase.rpc("create_league", {
     p_name: name,
@@ -112,10 +113,31 @@ export async function dbCreateLeague({ name, teamCount, filmsPerTeam, visibility
   return { id: row.out_id, joinCode: row.out_join_code };
 }
 
-export async function dbGetIRConfig() {
-  const v = await dbGet("ir_config");
+export async function dbGetIRConfig(leagueId) {
+  const v = await dbGet(leagueId, "ir_config");
   return v ? { ...DEFAULT_IR_CONFIG, ...JSON.parse(v) } : { ...DEFAULT_IR_CONFIG };
 }
-export async function dbSetIRConfig(config) {
-  await dbSet("ir_config", JSON.stringify(config));
+export async function dbSetIRConfig(leagueId, config) {
+  await dbSet(leagueId, "ir_config", JSON.stringify(config));
+}
+
+// Lists every league a given user belongs to, for the "Your Leagues" page.
+// Two-step lookup (memberships, then leagues by id) instead of a single
+// nested-select query — keeps this independent of exactly how the
+// league_members -> leagues foreign key relationship is named in Postgres,
+// which is safer against silent query failures.
+export async function dbGetUserLeagues(userId) {
+  const { data: memberships } = await supabase.from("league_members").select("league_id, player_name, role").eq("user_id", userId);
+  if (!memberships || memberships.length === 0) return [];
+  const leagueIds = memberships.map(m => m.league_id);
+  const { data: leagues } = await supabase.from("leagues").select("id, name, year, join_code, visibility, team_count").in("id", leagueIds);
+  const leagueById = {};
+  (leagues || []).forEach(l => { leagueById[l.id] = l; });
+  return memberships
+    .map(m => {
+      const league = leagueById[m.league_id];
+      if (!league) return null; // membership row with no matching league — skip rather than crash
+      return { ...league, playerName: m.player_name, role: m.role };
+    })
+    .filter(Boolean);
 }

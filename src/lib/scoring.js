@@ -40,6 +40,54 @@ export function calcFilmScore(film, scoring, rules = DEFAULT_SCORING_RULES) {
   return total;
 }
 
+// Returns a structured, category-by-category breakdown of a film's score — used by the
+// Draft Board's compact scoring-breakdown view. Only categories that actually contributed
+// points are included (BO/Critics/Audience are omitted individually if they scored 0; Oscar
+// categories are omitted entirely unless nominated/won).
+export function getFilmScoreBreakdown(film, scoring, rules = DEFAULT_SCORING_RULES) {
+  const fs = scoring?.[film];
+  if (!fs) return [];
+  const items = [];
+
+  const revenueMillions = fs.boRaw != null ? fs.boRaw / 1_000_000 : null;
+  const boTiersOn = rules.boTiersEnabled !== false;
+  if (boTiersOn) {
+    const boPts = getBOPoints(fs.bo || "", rules) + getBOBonusPoints(revenueMillions, rules.boBonuses);
+    if (fs.bo && boPts > 0) items.push({ label: "Box Office", value: fs.bo, pts: boPts });
+  }
+
+  if (fs.criticsRTRaw != null || fs.audienceRTRaw != null) {
+    const criticsPts = getCriticsPoints(fs.criticsRTRaw, rules);
+    const audiencePts = getAudiencePoints(fs.audienceRTRaw, rules);
+    if (criticsPts > 0) items.push({ label: "Critics (RT)", value: `${fs.criticsRTRaw}%+`, pts: criticsPts });
+    if (audiencePts > 0) items.push({ label: "Audience (RT)", value: `${fs.audienceRTRaw}%+`, pts: audiencePts });
+  } else {
+    const legacyPts = getRTPoints(fs.criticsRT || "", fs.audienceRT || "");
+    if (legacyPts > 0) items.push({ label: "Critics/Audience (RT)", value: "", pts: legacyPts });
+  }
+
+  const oscarCats = rules.oscarCategories || DEFAULT_SCORING_RULES.oscarCategories;
+  oscarCats.forEach((cat, i) => {
+    if (cat.enabled === false) return;
+    const nominated = (fs.oscarNoms?.[i] || []).includes(film);
+    const won = (fs.oscarWinner?.[i] || "") === film;
+    if (won) items.push({ label: cat.name, value: "Won", pts: cat.winPts });
+    else if (nominated) items.push({ label: cat.name, value: "Nom", pts: cat.nomPts });
+  });
+
+  if (rules.openingWeekendBonus?.enabled !== false && scoring._biggestOpeningFilm === film) {
+    items.push({ label: "Biggest Opening", value: "", pts: rules.openingWeekendBonus?.pts ?? 1 });
+  }
+  if (rules.weeksNumber1Bonus?.enabled !== false && scoring._mostNumber1Film === film) {
+    items.push({ label: "Most Weeks #1", value: "", pts: rules.weeksNumber1Bonus?.pts ?? 1 });
+  }
+  if (rules.seenFilm?.enabled !== false && fs.seenFilm) {
+    items.push({ label: "Seen It", value: "", pts: rules.seenFilm?.pts ?? 1 });
+  }
+
+  return items;
+}
+
 export function getFilmOscarStatus(film, scoring, rules = DEFAULT_SCORING_RULES) {
   const fs = scoring?.[film];
   if (!fs) return { nominated: false, winner: false, totalNoms: 0, totalWins: 0 };

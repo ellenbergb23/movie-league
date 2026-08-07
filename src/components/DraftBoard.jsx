@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { PLAYER_COLORS, FONT_SERIF } from "../lib/constants";
-import { calcFilmScore, getFilmOscarStatus, isFilmReleased } from "../lib/scoring";
+import { calcFilmScore, getFilmOscarStatus, isFilmReleased, getFilmScoreBreakdown } from "../lib/scoring";
 import { searchTMDB } from "../lib/tmdb";
 import { SL, Card, Poster, ConfirmDialog, PlaceholderBox } from "./ui";
 
@@ -129,38 +129,121 @@ export function DraftBoard({ draft, players, movies, canEdit, isCommissioner, op
             </div>
 
             {showBreakdown ? (
-              /* Compact scoring-breakdown view — one row per pick showing how the team's total
-                 is made up, without poster art. IR'd films show as zeroed/excluded. */
-              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                {picks.map((film, ri) => {
-                  const round = ["1","2","3","4","5","6","7","S1","S2"][ri];
-                  const isOnIR = film && irFilms.includes(film);
-                  const score = film && !isOnIR ? calcFilmScore(film, scoring, rules) : null;
-                  const released = film && !isOnIR ? isFilmReleased(film, scoring) : false;
-                  return (
-                    <div key={ri} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 8px", borderRadius: 4, background: t.surface2, border: `0.5px solid ${t.border}` }}>
-                      <span style={{ fontSize: 9, color: t.textMuted, fontWeight: 700, width: 22, flexShrink: 0 }}>{round}</span>
-                      <span style={{ flex: 1, fontSize: 11, color: film ? t.text : t.textMuted, fontStyle: film ? "normal" : "italic", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {film ? film : "TBD"}
-                      </span>
-                      {isOnIR ? (
-                        <span style={{ fontSize: 9, color: t.red, fontWeight: 700 }}>IR</span>
-                      ) : film && released ? (
-                        <span style={{ fontSize: 11, fontFamily: "monospace", color: t.textSub, fontWeight: 600 }}>{score} {score === 1 ? "pt" : "pts"}</span>
-                      ) : film ? (
-                        <span style={{ fontSize: 10, color: t.textMuted, fontStyle: "italic" }}>unreleased</span>
-                      ) : null}
-                    </div>
-                  );
-                })}
-                {irFilms.map(irFilm => (
-                  <div key={irFilm} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 8px", borderRadius: 4, background: t.redBg, border: `0.5px solid ${t.red}` }}>
-                    <span style={{ fontSize: 9, color: t.red, fontWeight: 700, width: 22, flexShrink: 0 }}>IR</span>
-                    <span style={{ flex: 1, fontSize: 11, color: t.red, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{irFilm}</span>
-                    <span style={{ fontSize: 10, color: t.red, fontStyle: "italic" }}>0 pts</span>
+              /* Compact scoring-breakdown view (Option C) — one stacked row per pick: round +
+                 clickable title + total on top, category-by-category point breakdown below.
+                 A film still awaiting an IR replacement shows as a pending "add film" slot in
+                 its round; the IR'd film itself is bumped to its own row at the bottom, tagged
+                 with the round it came from where that's still knowable from current data. */
+              (() => {
+                const roundLabels = ["1","2","3","4","5","6","7","S1","S2"];
+                const irOriginRound = {};
+                picks.forEach((f, i) => { if (f && irFilms.includes(f)) irOriginRound[f] = roundLabels[i]; });
+
+                return (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    {picks.map((film, ri) => {
+                      const round = roundLabels[ri];
+                      const isOnIR = film && irFilms.includes(film);
+                      const displayFilm = isOnIR ? "" : film;
+                      const isReplacement = isOnIR;
+                      const isEmpty = !displayFilm;
+                      const slotKey = `${player}-${ri}`;
+                      const isEditing = editingSlot === slotKey;
+                      const isFilledReplacement = displayFilm && replacementFilms.includes(displayFilm);
+                      const released = displayFilm ? isFilmReleased(displayFilm, scoring) : false;
+                      const score = displayFilm && released ? calcFilmScore(displayFilm, scoring, rules) : null;
+                      const breakdown = displayFilm && released ? getFilmScoreBreakdown(displayFilm, scoring, rules) : [];
+
+                      return (
+                        <div key={ri} style={{ padding: "6px 8px", borderRadius: 4, background: t.surface2, border: `0.5px solid ${t.border}` }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
+                            <span style={{ fontSize: 11, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              <span style={{ fontSize: 9, color: t.textMuted, fontWeight: 700, marginRight: 6 }}>RD {round}</span>
+                              {displayFilm ? (
+                                <span
+                                  onClick={() => goToFilmScoring(displayFilm)}
+                                  style={{ color: t.text, fontWeight: 600, cursor: "pointer", textDecoration: "underline", textDecorationColor: "transparent", transition: "text-decoration-color 0.15s" }}
+                                  onMouseEnter={e => e.currentTarget.style.textDecorationColor = t.gold}
+                                  onMouseLeave={e => e.currentTarget.style.textDecorationColor = "transparent"}
+                                >
+                                  {displayFilm}
+                                </span>
+                              ) : (
+                                <span style={{ color: t.textMuted, fontStyle: "italic" }}>{isReplacement ? "[replacement]" : "TBD"}</span>
+                              )}
+                              {isFilledReplacement && <span style={{ fontSize: 8, color: t.gold, fontWeight: 700, letterSpacing: "0.03em", marginLeft: 5 }}>[REPLACEMENT]</span>}
+                            </span>
+                            {displayFilm && (
+                              <span style={{ fontSize: 11, fontFamily: "monospace", fontWeight: 700, color: released ? t.gold : t.textMuted, fontStyle: released ? "normal" : "italic", flexShrink: 0 }}>
+                                {released ? `${score} pts` : "unreleased"}
+                              </span>
+                            )}
+                          </div>
+
+                          {breakdown.length > 0 && (
+                            <div style={{ fontSize: 9, color: t.textMuted, marginTop: 3, fontFamily: "monospace", lineHeight: 1.5 }}>
+                              {breakdown.map((it, bi) => (
+                                <span key={bi}>
+                                  {it.label}{it.value ? ` ${it.value}` : ""} <span style={{ color: t.gold, fontWeight: 700 }}>(+{it.pts})</span>
+                                  {bi < breakdown.length - 1 ? " · " : ""}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+
+                          {canEdit && (isCommissioner || openScoringMode) && (
+                            isEditing ? (
+                              <div style={{ marginTop: 4 }}><SearchDropdown player={player} ri={ri} displayFilm={displayFilm} /></div>
+                            ) : (!isOnIR || isReplacement) && (
+                              <div style={{ display: "flex", gap: 4, marginTop: 4 }}>
+                                <button
+                                  onClick={() => { setEditingSlot(slotKey); setSwapQuery(""); }}
+                                  style={{ fontSize: 9, color: isEmpty ? t.gold : t.textMuted, background: "none", border: isEmpty ? `0.5px solid ${t.gold}` : `0.5px solid ${t.border}`, borderRadius: 4, cursor: "pointer", padding: "2px 6px", fontWeight: 600 }}
+                                >
+                                  {isEmpty ? "add film" : "swap"}
+                                </button>
+                                {!isEmpty && isCommissioner && irConfig?.enabled && displayFilm && irFilms.length < irConfig.maxSlots && (
+                                  <button onClick={() => setConfirmIR({ player, film: displayFilm })} style={{ fontSize: 9, color: "#fff", background: "#B71C1C", border: "none", borderRadius: 4, cursor: "pointer", padding: "2px 6px", fontWeight: 700 }}>IR</button>
+                                )}
+                              </div>
+                            )
+                          )}
+                        </div>
+                      );
+                    })}
+
+                    {/* Bumped IR films — moved to the bottom, tagged with their originating round
+                        where that's still derivable from current picks data. No points shown. */}
+                    {irFilms.map(irFilm => (
+                      <div key={irFilm} style={{ padding: "6px 8px", borderRadius: 4, background: t.goldBg, border: `0.5px solid ${t.border}`, opacity: 0.85 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
+                          <span style={{ fontSize: 11, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            <span style={{ fontSize: 9, color: "#B71C1C", fontWeight: 700, marginRight: 6 }}>
+                              IR{irOriginRound[irFilm] ? ` (RD ${irOriginRound[irFilm]})` : ""}
+                            </span>
+                            <span
+                              onClick={() => goToFilmScoring(irFilm)}
+                              style={{ color: t.textMuted, cursor: "pointer", textDecoration: "underline", textDecorationColor: "transparent", transition: "text-decoration-color 0.15s" }}
+                              onMouseEnter={e => e.currentTarget.style.textDecorationColor = t.gold}
+                              onMouseLeave={e => e.currentTarget.style.textDecorationColor = "transparent"}
+                            >
+                              {irFilm}
+                            </span>
+                          </span>
+                        </div>
+                        {isCommissioner && (
+                          <button
+                            onClick={() => { if (window.confirm(`Remove ${irFilm} from IR for ${player}?`)) removeFromIR(player, irFilm); }}
+                            style={{ fontSize: 9, color: "#B71C1C", background: "none", border: `0.5px solid #B71C1C`, borderRadius: 4, cursor: "pointer", padding: "2px 6px", fontWeight: 600, marginTop: 4 }}
+                          >
+                            remove IR
+                          </button>
+                        )}
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                );
+              })()
             ) : (
             /* Single grid — picks + IR box all flow together. 7 fixed columns so Rounds 1–7
                 sit on one row and S1/S2 (plus any IR box) wrap to the next. */

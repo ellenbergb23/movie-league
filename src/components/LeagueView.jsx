@@ -15,6 +15,7 @@ import {
 } from "../lib/db";
 import { defaultScoringRules } from "../lib/scoringRules";
 import { WaitingPage } from "./WaitingPage";
+import { LeagueSwitcher } from "./LeagueSwitcher";
 import { Leaderboard } from "./Leaderboard";
 import { DraftBoard } from "./DraftBoard";
 import { Scoring } from "./Scoring";
@@ -651,6 +652,7 @@ export default function LeagueView({ leagueId, authUser, darkMode, toggleDark, s
                 <div style={{ fontFamily: FONT_SERIF, fontSize: 13, color: t.text }}>{myPlayerName || (isCommissioner ? "Commissioner" : authUser.email)}</div>
                 {isCommissioner && <div style={{ fontSize: 10, color: t.gold, border: `0.5px solid ${t.gold}`, borderRadius: 10, padding: "1px 7px", display: "inline-block", marginTop: 2 }}>Commissioner</div>}
               </div>
+              <LeagueSwitcher authUser={authUser} darkMode={darkMode} navigate={navigate} currentLeagueId={leagueId} />
               <button onClick={onShowCreateLeagueModal} style={{ background: "none", border: `0.5px solid ${t.border}`, borderRadius: 6, padding: "5px 10px", fontSize: 12, color: t.textMuted, cursor: "pointer" }}>+ New League</button>
               <button onClick={signOut} style={{ background: "none", border: `0.5px solid ${t.border}`, borderRadius: 6, padding: "5px 10px", fontSize: 12, color: t.textMuted, cursor: "pointer" }}>Sign out</button>
             </>

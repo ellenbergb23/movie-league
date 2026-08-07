@@ -36,7 +36,7 @@ export function AuthModal({ t, onAuth, onClose }) {
         </div>
         <div style={{ display: "flex", marginBottom: 20, background: t.surface2, borderRadius: 8, padding: 3 }}>
           {["login","signup"].map(m => (
-            <button key={m} onClick={() => { setMode(m); setError(""); }} style={{ flex: 1, padding: "7px 0", fontSize: 13, fontWeight: mode === m ? 600 : 400, color: mode === m ? t.text : t.textMuted, background: mode === m ? t.surface : "transparent", border: "none", borderRadius: 6, cursor: "pointer" }}>
+            <button key={m} onClick={() => { setMode(m); setError(""); }} style={{ flex: 1, padding: "7px 0", fontSize: 13, fontWeight: mode === m ? 700 : 400, color: mode === m ? t.gold : t.textMuted, background: mode === m ? t.goldBg : "transparent", border: "none", borderRadius: 6, cursor: "pointer" }}>
               {m === "login" ? "Log in" : "Sign up"}
             </button>
           ))}

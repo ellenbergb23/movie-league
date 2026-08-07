@@ -64,7 +64,7 @@ export default function App() {
   const myPlayerName = dbUser?.player_name || null;
   const isAssigned = !!myPlayerName;
 
-  // canEdit: true if Open Scoring Mode is on, OR if user is commissioner, OR if user is assigned
+  // canEdit: true if Community Scoring Mode is on, OR if user is commissioner, OR if user is assigned
   const canEdit = openScoringMode || isCommissioner || isAssigned;
   // canEditOwn: can edit their own team name only
   const canEditOwn = canEdit;
@@ -156,7 +156,7 @@ export default function App() {
     const next = !openScoringMode;
     setOpenScoringMode(next);
     await dbSetOpenScoringMode(next);
-    showToast(next ? "Open Scoring Mode enabled" : "Commissioner Scoring Mode enabled");
+    showToast(next ? "Community Scoring Mode enabled" : "Commissioner Scoring Mode enabled");
   }
 
   async function updateLeagueName(name) { setLeagueName(name); await dbSet("league_name", name); showToast("Saved"); }
@@ -661,7 +661,7 @@ export default function App() {
             <div style={{ fontFamily: FONT_SERIF, fontSize: 19, fontWeight: 500, color: t.text, lineHeight: 1.2 }}>{leagueName}</div>
             <div style={{ fontSize: 10, fontWeight: 600, color: t.textMuted, letterSpacing: "0.1em", textTransform: "uppercase" }}>2026 Season</div>
           </div>
-          {openScoringMode && isCommissioner && <span style={{ fontSize: 11, color: t.gold, border: `0.5px solid ${t.gold}`, padding: "2px 7px", borderRadius: 4, fontWeight: 600, marginLeft: 4 }}>Open Scoring Mode</span>}
+          {openScoringMode && isCommissioner && <span style={{ fontSize: 11, color: t.gold, border: `0.5px solid ${t.gold}`, padding: "2px 7px", borderRadius: 4, fontWeight: 600, marginLeft: 4 }}>Community Scoring Mode</span>}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
           {authUser ? (

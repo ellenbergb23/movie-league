@@ -280,7 +280,7 @@ export function DraftBoard({ draft, players, movies, canEdit, isCommissioner, op
                           {score !== null && (
                             <div style={{ width: "100%", textAlign: "center" }}>
                               {isFilmReleased(displayFilm, scoring) ? (
-                                <span style={{ fontSize: 10, fontFamily: "monospace", color: t.textSub, fontWeight: 600 }}>{score} {score === 1 ? "Point" : "Points"}</span>
+                                <span style={{ fontSize: 10, fontFamily: "monospace", color: t.gold, fontWeight: 600 }}>{score} {score === 1 ? "Point" : "Points"}</span>
                               ) : (
                                 <span style={{ fontSize: 10, color: t.textMuted, fontStyle: "italic" }}>Unreleased</span>
                               )}

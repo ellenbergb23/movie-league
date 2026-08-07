@@ -66,8 +66,6 @@ export default function App() {
 
   // canEdit: true if Open Scoring Mode is on, OR if user is commissioner, OR if user is assigned
   const canEdit = openScoringMode || isCommissioner || isAssigned;
-  // canEditOwn: can edit their own team name only
-  const canEditOwn = canEdit;
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {

@@ -4,7 +4,7 @@ import { resolveBOTier, formatBOLabel, getCriticsPoints, getAudiencePoints } fro
 import { formatRevenue } from "../lib/scoring-utils";
 import { Card, Poster, CollapsibleSL, ConfirmDialog } from "./ui";
 
-export function Scoring({ scoring, movies, canEdit, isCommissioner, requireAuth, updateScoring, updateScoringMulti, updateScoringRoot, updateOscarField, updateMovieName, scoringFilm, setScoringFilm, showToast, fetchFilmScoring, t, rules }) {
+export function Scoring({ scoring, movies, canEdit, isCommissioner, requireAuth, updateScoring, updateScoringMulti, updateScoringRoot, updateOscarField, updateMovieName, scoringFilm, setScoringFilm, fetchFilmScoring, t, rules }) {
   const [film, setFilm] = useState(scoringFilm || movies[0]);
   const [renaming, setRenaming] = useState(false);
   const [renameVal, setRenameVal] = useState("");

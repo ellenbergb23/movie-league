@@ -2,7 +2,7 @@ import { useState } from "react";
 import { PLAYER_COLORS } from "../lib/constants";
 import { SL, Card, Poster } from "./ui";
 
-export function Settings({ movies, players, canEdit, myPlayerName, openScoringMode, updateMovieName, addMovie, renamePlayer, t, showToast, requireAuth, isCommissioner, searchTMDB, scoring }) {
+export function Settings({ movies, players, canEdit, myPlayerName, openScoringMode, updateMovieName, addMovie, renamePlayer, t, requireAuth, isCommissioner, searchTMDB, scoring }) {
   const [editingPlayer, setEditingPlayer] = useState(null);
   const [playerVal, setPlayerVal] = useState("");
   const [editingFilm, setEditingFilm] = useState(null);

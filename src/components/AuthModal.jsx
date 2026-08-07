@@ -18,7 +18,7 @@ export function AuthModal({ t, onAuth, onClose }) {
       const { data, error: err } = await supabase.auth.signUp({ email, password });
       if (err) { setError(err.message); setLoading(false); return; }
       if (data.user) {
-        await supabase.from("users").upsert({ id: data.user.id, email, league_id: LEAGUE_ID, player_name: null }, { onConflict: "id" });
+        await supabase.from("league_members").upsert({ user_id: data.user.id, league_id: LEAGUE_ID, player_name: null, role: "player" }, { onConflict: "user_id,league_id" });
         onAuth(data.user);
       }
     }

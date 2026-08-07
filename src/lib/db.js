@@ -57,19 +57,20 @@ export async function dbRenamePlayer(oldName, newName, players) {
   await supabase.from("draft_picks").update({ player_name: newName }).eq("league_id", LEAGUE_ID).eq("player_name", oldName);
   const newPlayers = players.map(p => p === oldName ? newName : p);
   await dbSet("players", JSON.stringify(newPlayers));
-  await supabase.from("users").update({ player_name: newName }).eq("league_id", LEAGUE_ID).eq("player_name", oldName);
+  await supabase.from("league_members").update({ player_name: newName }).eq("league_id", LEAGUE_ID).eq("player_name", oldName);
   return newPlayers;
 }
 export async function dbGetLeagueUsers() {
-  const { data } = await supabase.from("users").select("*").eq("league_id", LEAGUE_ID);
-  return data || [];
+  const { data } = await supabase.from("league_members").select("*").eq("league_id", LEAGUE_ID);
+  // alias user_id -> id so existing callers (App.jsx) that match rows by `.id` keep working
+  return (data || []).map(row => ({ ...row, id: row.user_id }));
 }
 export async function dbAssignPlayer(userId, playerName) {
-  await supabase.from("users").update({ player_name: playerName }).eq("id", userId);
+  await supabase.from("league_members").update({ player_name: playerName }).eq("user_id", userId).eq("league_id", LEAGUE_ID);
 }
 export async function dbGetCurrentUser(userId) {
-  const { data } = await supabase.from("users").select("*").eq("id", userId).single();
-  return data;
+  const { data } = await supabase.from("league_members").select("*").eq("user_id", userId).eq("league_id", LEAGUE_ID).maybeSingle();
+  return data ? { ...data, id: data.user_id } : data;
 }
 export async function dbGetIR() {
   const v = await dbGet("ir_slots");

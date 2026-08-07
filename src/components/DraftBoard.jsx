@@ -4,7 +4,7 @@ import { calcFilmScore, getFilmOscarStatus, isFilmReleased, getFilmScoreBreakdow
 import { searchTMDB } from "../lib/tmdb";
 import { SL, Card, Poster, ConfirmDialog, PlaceholderBox } from "./ui";
 
-export function DraftBoard({ draft, players, movies, canEdit, isCommissioner, openScoringMode, updateDraftPick, requireAuth, scoring, goToFilmScoring, t, focusPlayer, addMovie, irSlots, placeOnIR, removeFromIR, replacements, rules, irConfig }) {
+export function DraftBoard({ draft, players, movies, canEdit, isCommissioner, openScoringMode, updateDraftPick, scoring, goToFilmScoring, t, focusPlayer, addMovie, irSlots, placeOnIR, removeFromIR, replacements, rules, irConfig }) {
   const sel = { width: "100%", fontSize: 11, padding: "4px 6px", borderRadius: 6, border: `0.5px solid ${t.border}`, background: t.selectBg, color: t.text, cursor: "pointer" };
   const [editingSlot, setEditingSlot] = useState(null);
   const [swapQuery, setSwapQuery] = useState("");
@@ -238,7 +238,9 @@ export function DraftBoard({ draft, players, movies, canEdit, isCommissioner, op
                         {isCommissioner && (
                           <button
                             onClick={() => { if (window.confirm(`Remove ${irFilm} from IR for ${player}?`)) removeFromIR(player, irFilm); }}
-                            style={{ fontSize: 9, color: "#B71C1C", background: "none", border: `0.5px solid #B71C1C`, borderRadius: 4, cursor: "pointer", padding: "2px 6px", fontWeight: 600, marginTop: 4 }}
+                            style={{ fontSize: 9, color: "#B71C1C", background: "none", border: `0.5px solid #B71C1C`, borderRadius: 4, cursor: "pointer", padding: "2px 6px", fontWeight: 600, marginTop: 4, transition: "background 0.15s, color 0.15s" }}
+                            onMouseEnter={e => { e.currentTarget.style.background = "#B71C1C"; e.currentTarget.style.color = "#fff"; }}
+                            onMouseLeave={e => { e.currentTarget.style.background = "none"; e.currentTarget.style.color = "#B71C1C"; }}
                           >
                             remove IR
                           </button>
@@ -251,7 +253,7 @@ export function DraftBoard({ draft, players, movies, canEdit, isCommissioner, op
             ) : (
             /* Single grid — picks + IR box all flow together. 7 fixed columns so Rounds 1–7
                 sit on one row and S1/S2 (plus any IR box) wrap to the next. */
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(110px, 1fr))", gap: 8 }}>
+            <div className="ffl-draft-grid" style={{ display: "grid", gap: 8 }}>
               {picks.map((film, ri) => {
                 const round = ["1","2","3","4","5","6","7","S1","S2"][ri];
                 const isOnIR = film && irFilms.includes(film);
@@ -356,7 +358,9 @@ export function DraftBoard({ draft, players, movies, canEdit, isCommissioner, op
                   {isCommissioner && (
                     <button
                       onClick={() => { if (window.confirm(`Remove ${irFilm} from IR for ${player}?`)) removeFromIR(player, irFilm); }}
-                      style={{ fontSize: 9, color: "#B71C1C", background: "none", border: `0.5px solid #B71C1C`, borderRadius: 4, cursor: "pointer", padding: "2px 6px", fontWeight: 600 }}
+                      style={{ fontSize: 9, color: "#B71C1C", background: "none", border: `0.5px solid #B71C1C`, borderRadius: 4, cursor: "pointer", padding: "2px 6px", fontWeight: 600, transition: "background 0.15s, color 0.15s" }}
+                      onMouseEnter={e => { e.currentTarget.style.background = "#B71C1C"; e.currentTarget.style.color = "#fff"; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = "none"; e.currentTarget.style.color = "#B71C1C"; }}
                     >
                       remove IR
                     </button>

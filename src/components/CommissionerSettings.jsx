@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { SL, CollapsibleSL, Card } from "./ui";
 
-export function CommissionerSettings({ leagueName, updateLeagueName, openScoringMode, toggleOpenScoringMode, leagueUsers, players, assignPlayer, t, showToast, movies, backfillPosters, backfillScoring, scoring, applyUnreleasedData }) {
+export function CommissionerSettings({ leagueName, updateLeagueName, openScoringMode, toggleOpenScoringMode, leagueUsers, players, assignPlayer, t, movies, backfillPosters, backfillScoring, scoring, applyUnreleasedData }) {
   const [editingLeague, setEditingLeague] = useState(false);
   const [leagueVal, setLeagueVal] = useState(leagueName);
   const [copied, setCopied] = useState(false);

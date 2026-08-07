@@ -14,6 +14,11 @@ export async function dbGetPlayers(leagueId) {
   return v ? JSON.parse(v) : [...DEFAULT_PLAYERS];
 }
 export async function dbGetLeagueName(leagueId) { return (await dbGet(leagueId, "league_name")) || "The 2026 Film League"; }
+export async function dbGetJoinCode(leagueId) {
+  const { data, error } = await supabase.from("leagues").select("join_code").eq("id", leagueId).single();
+  if (error) return null;
+  return data?.join_code || null;
+}
 export async function dbGetOpenScoringMode(leagueId) { return (await dbGet(leagueId, "marxist_mode")) === "true"; }
 export async function dbSetOpenScoringMode(leagueId, val) { await dbSet(leagueId, "marxist_mode", String(val)); }
 export async function dbGetDraft(leagueId, players) {

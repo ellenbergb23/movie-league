@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
 import { SL, CollapsibleSL, Card } from "./ui";
 
-export function CommissionerSettings({ leagueName, updateLeagueName, openScoringMode, toggleOpenScoringMode, leagueUsers, players, assignPlayer, t, movies, backfillPosters, backfillScoring, scoring, applyUnreleasedData }) {
+export function CommissionerSettings({ leagueName, updateLeagueName, openScoringMode, toggleOpenScoringMode, leagueUsers, players, assignPlayer, t, movies, backfillPosters, backfillScoring, scoring, applyUnreleasedData, joinCode }) {
   const [editingLeague, setEditingLeague] = useState(false);
   const [leagueVal, setLeagueVal] = useState(leagueName);
   const [copied, setCopied] = useState(false);
+  const [codeCopied, setCodeCopied] = useState(false);
   const [posterProgress, setPosterProgress] = useState(null);
   const [posterRunning, setPosterRunning] = useState(false);
   const [posterResults, setPosterResults] = useState(null);
@@ -50,6 +51,7 @@ export function CommissionerSettings({ leagueName, updateLeagueName, openScoring
   const inp = { fontSize: 13, padding: "7px 10px", borderRadius: 7, border: `0.5px solid ${t.borderStrong}`, background: t.surface2, color: t.text };
 
   function copyInvite() { navigator.clipboard.writeText(inviteUrl); setCopied(true); setTimeout(() => setCopied(false), 2000); }
+  function copyJoinCode() { if (!joinCode) return; navigator.clipboard.writeText(joinCode); setCodeCopied(true); setTimeout(() => setCodeCopied(false), 2000); }
 
   // Merge every skip reason per film into one alphabetically-sorted list — purely informational.
   function buildSkippedFilms(results) {
@@ -270,6 +272,17 @@ export function CommissionerSettings({ leagueName, updateLeagueName, openScoring
           </button>
         </div>
         <p style={{ fontSize: 11, color: t.textMuted, marginTop: 8 }}>Share with your league. After they sign up, assign them to their team below.</p>
+        {joinCode && (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 14, paddingTop: 14, borderTop: `0.5px solid ${t.border}` }}>
+            <div>
+              <p style={{ fontSize: 12, color: t.textMuted, marginBottom: 4 }}>Join code</p>
+              <span style={{ fontSize: 18, color: t.text, fontFamily: "monospace", fontWeight: 700, letterSpacing: 1 }}>{joinCode}</span>
+            </div>
+            <button onClick={copyJoinCode} style={{ fontSize: 12, padding: "5px 14px", borderRadius: 6, border: `0.5px solid ${t.border}`, background: codeCopied ? t.gold : "transparent", color: codeCopied ? "#fff" : t.gold, cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap", marginLeft: 12 }}>
+              {codeCopied ? "Copied!" : "Copy code"}
+            </button>
+          </div>
+        )}
       </Card>
 
       {unassigned.length > 0 && (

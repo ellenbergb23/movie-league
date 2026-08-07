@@ -12,6 +12,7 @@ import {
   dbGetIR, dbSetIR, dbGetReplacements, dbSetReplacements,
   dbGetIRConfig, dbSetIRConfig,
   dbGetScoringRules, dbSetScoringRules,
+  dbGetJoinCode,
 } from "../lib/db";
 import { defaultScoringRules } from "../lib/scoringRules";
 import { WaitingPage } from "./WaitingPage";
@@ -48,6 +49,7 @@ export default function LeagueView({ leagueId, authUser, darkMode, toggleDark, s
   const [scoring, setScoring] = useState({});
   const [movies, setMovies] = useState([]);
   const [leagueName, setLeagueName] = useState("The 2026 Film League");
+  const [joinCode, setJoinCode] = useState(null);
   const [openScoringMode, setOpenScoringMode] = useState(false);
   const [leagueUsers, setLeagueUsers] = useState([]);
   const [dataLoading, setDataLoading] = useState(true);
@@ -85,10 +87,11 @@ export default function LeagueView({ leagueId, authUser, darkMode, toggleDark, s
   useEffect(() => {
     async function load() {
       setDataLoading(true);
-      const [name, loadedPlayers, movieData, scoreData, usersData, openScoring, irData, replacementsData, irConfigData, rulesData] = await Promise.all([
-        dbGetLeagueName(leagueId), dbGetPlayers(leagueId), dbGetMovies(leagueId), dbGetScores(leagueId), dbGetLeagueUsers(leagueId), dbGetOpenScoringMode(leagueId), dbGetIR(leagueId), dbGetReplacements(leagueId), dbGetIRConfig(leagueId), dbGetScoringRules(leagueId)
+      const [name, loadedPlayers, movieData, scoreData, usersData, openScoring, irData, replacementsData, irConfigData, rulesData, code] = await Promise.all([
+        dbGetLeagueName(leagueId), dbGetPlayers(leagueId), dbGetMovies(leagueId), dbGetScores(leagueId), dbGetLeagueUsers(leagueId), dbGetOpenScoringMode(leagueId), dbGetIR(leagueId), dbGetReplacements(leagueId), dbGetIRConfig(leagueId), dbGetScoringRules(leagueId), dbGetJoinCode(leagueId)
       ]);
       setLeagueName(name);
+      setJoinCode(code);
       setPlayers(loadedPlayers);
       setMovies(movieData);
       setScoring(scoreData);
@@ -716,7 +719,7 @@ export default function LeagueView({ leagueId, authUser, darkMode, toggleDark, s
         {tab === "all films"    && <AllFilms movies={movies} scoring={scoringWithMeta} rules={scoringRules} t={t} goToFilmScoring={goToFilmScoring} />}
         {tab === "scoring"      && <Scoring scoring={scoringWithMeta} movies={movies} canEdit={canEdit} isCommissioner={isCommissioner} requireAuth={requireAuth} updateScoring={updateScoring} updateScoringMulti={updateScoringMulti} updateScoringRoot={updateScoringRoot} updateOscarField={updateOscarField} updateMovieName={updateMovieName} scoringFilm={scoringFilm} setScoringFilm={setScoringFilm} showToast={showToast} fetchFilmScoring={fetchFilmScoring} t={t} rules={scoringRules} />}
         {tab === "settings"     && <Settings movies={movies} players={players} canEdit={canEdit} myPlayerName={myPlayerName} openScoringMode={openScoringMode} updateMovieName={updateMovieName} addMovie={addMovie} renamePlayer={renamePlayer} t={t} showToast={showToast} requireAuth={requireAuth} isCommissioner={isCommissioner} searchTMDB={searchTMDB} scoring={scoringWithMeta} />}
-        {tab === "commissioner" && isCommissioner && <CommissionerSettings leagueName={leagueName} updateLeagueName={updateLeagueName} openScoringMode={openScoringMode} toggleOpenScoringMode={toggleOpenScoringMode} leagueUsers={leagueUsers} players={players} assignPlayer={assignPlayer} t={t} showToast={showToast} movies={movies} backfillPosters={backfillPosters} backfillScoring={backfillScoring} scoring={scoringWithMeta} applyUnreleasedData={applyUnreleasedData} />}
+        {tab === "commissioner" && isCommissioner && <CommissionerSettings leagueName={leagueName} updateLeagueName={updateLeagueName} openScoringMode={openScoringMode} toggleOpenScoringMode={toggleOpenScoringMode} leagueUsers={leagueUsers} players={players} assignPlayer={assignPlayer} t={t} showToast={showToast} movies={movies} backfillPosters={backfillPosters} backfillScoring={backfillScoring} scoring={scoringWithMeta} applyUnreleasedData={applyUnreleasedData} joinCode={joinCode} />}
         {tab === "league management" && isCommissioner && <LeagueManagement rules={scoringRules} updateScoringRules={updateScoringRules} onDirtyChange={setLmDirty} t={t} showToast={showToast} irConfig={irConfig} updateIRConfig={updateIRConfig} movies={movies} draftBoard={draft} deleteMovie={deleteMovie} />}
       </main>
     </div>

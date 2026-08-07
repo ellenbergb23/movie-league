@@ -113,6 +113,54 @@ export async function dbCreateLeague({ name, teamCount, filmsPerTeam, visibility
   return { id: row.out_id, joinCode: row.out_join_code };
 }
 
+// Looks up a league by join code and returns its open team slots + already-
+// taken colors, so the join flow can show a picker before the user commits.
+// Read-only, works whether or not the caller is signed in yet (see
+// preview_league_by_code in the migration for why this is a SECURITY
+// DEFINER RPC rather than a raw client select).
+export async function dbPreviewLeagueByCode(joinCode) {
+  const { data, error } = await supabase.rpc("preview_league_by_code", { p_join_code: joinCode });
+  if (error) throw error;
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row) throw new Error("League lookup did not return a result.");
+  return {
+    id: row.out_id,
+    name: row.out_name,
+    teamCount: row.out_team_count,
+    filmsPerTeam: row.out_films_per_team,
+    openSlots: row.out_open_slots || [],
+    takenColors: row.out_taken_colors || [],
+  };
+}
+
+// Atomically claims one open team slot in a league (see join_league in the
+// migration). slotName must be one of the values dbPreviewLeagueByCode
+// returned in openSlots (e.g. "Team 3").
+export async function dbJoinLeague({ joinCode, slotName, playerName, teamColor }) {
+  const { data, error } = await supabase.rpc("join_league", {
+    p_join_code: joinCode,
+    p_slot_name: slotName,
+    p_player_name: playerName,
+    p_team_color: teamColor,
+  });
+  if (error) throw error;
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row) throw new Error("Join did not return a result.");
+  return { id: row.out_id };
+}
+
+// Lets a member (including the commissioner) set their own display name +
+// team color after the fact — used by the "Welcome to the League" prompt
+// that appears the first time someone with no color yet lands in a league.
+export async function dbSetMyTeam(leagueId, { playerName, teamColor }) {
+  const { error } = await supabase.rpc("set_my_team", {
+    p_league_id: leagueId,
+    p_player_name: playerName,
+    p_team_color: teamColor,
+  });
+  if (error) throw error;
+}
+
 export async function dbGetIRConfig(leagueId) {
   const v = await dbGet(leagueId, "ir_config");
   return v ? { ...DEFAULT_IR_CONFIG, ...JSON.parse(v) } : { ...DEFAULT_IR_CONFIG };

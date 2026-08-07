@@ -4,6 +4,7 @@ import { THEMES, FONT_SANS } from "./lib/constants";
 import { parseRoute } from "./lib/router";
 import { AuthModal } from "./components/AuthModal";
 import { CreateLeagueModal } from "./components/CreateLeagueModal";
+import { JoinLeagueModal } from "./components/JoinLeagueModal";
 import YourLeagues from "./components/YourLeagues";
 import LeagueView from "./components/LeagueView";
 
@@ -12,6 +13,7 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(true);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showCreateLeagueModal, setShowCreateLeagueModal] = useState(false);
+  const [showJoinLeagueModal, setShowJoinLeagueModal] = useState(false);
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem("darkMode") === "true");
   const [toast, setToast] = useState(null);
   const [route, setRoute] = useState(() => parseRoute(window.location.pathname));
@@ -56,6 +58,7 @@ export default function App() {
     <>
       {showAuthModal && <AuthModal t={t} leagueId={currentLeagueId} onAuth={user => { setAuthUser(user); setShowAuthModal(false); }} onClose={() => setShowAuthModal(false)} />}
       {showCreateLeagueModal && <CreateLeagueModal t={t} authUser={authUser} navigate={navigate} onAuth={user => setAuthUser(user)} onClose={() => setShowCreateLeagueModal(false)} showToast={showToast} />}
+      {showJoinLeagueModal && <JoinLeagueModal t={t} authUser={authUser} navigate={navigate} onAuth={user => setAuthUser(user)} onClose={() => setShowJoinLeagueModal(false)} showToast={showToast} />}
       {toast && <div style={{ position: "fixed", top: 16, right: 16, background: t.gold, color: darkMode ? "#0A0A0A" : "#fff", padding: "9px 14px", borderRadius: 8, fontSize: 13, fontWeight: 500, zIndex: 999 }}>{toast}</div>}
 
       {route.page === "league" ? (
@@ -68,6 +71,7 @@ export default function App() {
           showToast={showToast}
           onShowAuthModal={() => setShowAuthModal(true)}
           onShowCreateLeagueModal={() => setShowCreateLeagueModal(true)}
+          onShowJoinLeagueModal={() => setShowJoinLeagueModal(true)}
           signOut={signOut}
           navigate={navigate}
         />
@@ -78,6 +82,7 @@ export default function App() {
           toggleDark={toggleDark}
           onShowAuthModal={() => setShowAuthModal(true)}
           onShowCreateLeagueModal={() => setShowCreateLeagueModal(true)}
+          onShowJoinLeagueModal={() => setShowJoinLeagueModal(true)}
           signOut={signOut}
           navigate={navigate}
         />

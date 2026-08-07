@@ -3,7 +3,7 @@ import { THEMES, FONT_SANS, FONT_SERIF } from "../lib/constants";
 import { dbGetUserLeagues } from "../lib/db";
 import { leaguePath } from "../lib/router";
 
-export default function YourLeagues({ authUser, darkMode, toggleDark, onShowAuthModal, onShowCreateLeagueModal, signOut, navigate }) {
+export default function YourLeagues({ authUser, darkMode, toggleDark, onShowAuthModal, onShowCreateLeagueModal, onShowJoinLeagueModal, signOut, navigate }) {
   const [leagues, setLeagues] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -29,6 +29,7 @@ export default function YourLeagues({ authUser, darkMode, toggleDark, onShowAuth
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <button onClick={onShowJoinLeagueModal} style={btn}>+ Join League</button>
           <button onClick={onShowCreateLeagueModal} style={btn}>+ New League</button>
           {authUser ? (
             <button onClick={signOut} style={btn}>Sign out</button>
@@ -50,9 +51,10 @@ export default function YourLeagues({ authUser, darkMode, toggleDark, onShowAuth
       <main style={{ maxWidth: 720, margin: "0 auto", padding: "2.5rem 1.5rem" }}>
         {!authUser ? (
           <div style={{ textAlign: "center", padding: "4rem 1rem" }}>
-            <p style={{ fontSize: 14, color: t.textMuted, marginBottom: 20 }}>Sign in to see the leagues you're part of, or create a new one to get started.</p>
+            <p style={{ fontSize: 14, color: t.textMuted, marginBottom: 20 }}>Sign in to see the leagues you're part of, join one with a code, or create a new one to get started.</p>
             <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
               <button onClick={onShowAuthModal} style={goldBtn}>Log in</button>
+              <button onClick={onShowJoinLeagueModal} style={{ ...goldBtn, background: "none", border: `0.5px solid ${t.border}`, color: t.text }}>Join with a code</button>
               <button onClick={onShowCreateLeagueModal} style={{ ...goldBtn, background: "none", border: `0.5px solid ${t.border}`, color: t.text }}>Create a league</button>
             </div>
           </div>
@@ -61,7 +63,10 @@ export default function YourLeagues({ authUser, darkMode, toggleDark, onShowAuth
         ) : leagues.length === 0 ? (
           <div style={{ textAlign: "center", padding: "4rem 1rem" }}>
             <p style={{ fontSize: 14, color: t.textMuted, marginBottom: 20 }}>You're not part of any leagues yet.</p>
-            <button onClick={onShowCreateLeagueModal} style={goldBtn}>Create a league</button>
+            <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+              <button onClick={onShowJoinLeagueModal} style={{ ...goldBtn, background: "none", border: `0.5px solid ${t.border}`, color: t.text }}>Join with a code</button>
+              <button onClick={onShowCreateLeagueModal} style={goldBtn}>Create a league</button>
+            </div>
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>

@@ -6,7 +6,7 @@ import { leaguePath } from "../lib/router";
 // A small dropdown, meant for the header, that lists the leagues the signed-in
 // user belongs to and lets them jump straight to one. currentLeagueId (optional)
 // highlights whichever league is currently being viewed.
-export function LeagueSwitcher({ authUser, darkMode, navigate, currentLeagueId }) {
+export function LeagueSwitcher({ authUser, darkMode, navigate, currentLeagueId, onShowJoinLeagueModal }) {
   const [leagues, setLeagues] = useState([]);
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -51,9 +51,15 @@ export function LeagueSwitcher({ authUser, darkMode, navigate, currentLeagueId }
           )}
           <button
             onClick={() => { setOpen(false); navigate("/"); }}
-            style={{ display: "block", width: "100%", textAlign: "left", padding: "9px 14px", fontSize: 12, color: t.gold, background: "none", border: "none", cursor: "pointer" }}
+            style={{ display: "block", width: "100%", textAlign: "left", padding: "9px 14px", fontSize: 12, color: t.gold, background: "none", border: "none", borderBottom: `0.5px solid ${t.border}`, cursor: "pointer" }}
           >
             See all / create new →
+          </button>
+          <button
+            onClick={() => { setOpen(false); onShowJoinLeagueModal?.(); }}
+            style={{ display: "block", width: "100%", textAlign: "left", padding: "9px 14px", fontSize: 12, color: t.textMuted, background: "none", border: "none", cursor: "pointer" }}
+          >
+            Join a league with a code
           </button>
         </div>
       )}

@@ -15,6 +15,7 @@ import {
 } from "../lib/db";
 import { defaultScoringRules } from "../lib/scoringRules";
 import { WaitingPage } from "./WaitingPage";
+import { WelcomeModal } from "./WelcomeModal";
 import { LeagueSwitcher } from "./LeagueSwitcher";
 import { Leaderboard } from "./Leaderboard";
 import { DraftBoard } from "./DraftBoard";
@@ -39,7 +40,7 @@ function normalizeIRMap(map) {
 // darkMode/toggleDark, showToast: shared UI state, owned by the parent App so it's consistent across pages.
 // onShowAuthModal/onShowCreateLeagueModal: open the shared modals that live in the parent App.
 // signOut, navigate: shared actions from the parent App.
-export default function LeagueView({ leagueId, authUser, darkMode, toggleDark, showToast, onShowAuthModal, onShowCreateLeagueModal, signOut, navigate }) {
+export default function LeagueView({ leagueId, authUser, darkMode, toggleDark, showToast, onShowAuthModal, onShowCreateLeagueModal, onShowJoinLeagueModal, signOut, navigate }) {
   const [dbUser, setDbUser] = useState(null);
 
   const [players, setPlayers] = useState([...DEFAULT_PLAYERS]);
@@ -58,6 +59,7 @@ export default function LeagueView({ leagueId, authUser, darkMode, toggleDark, s
   const [irConfig, setIrConfig] = useState(() => ({ ...DEFAULT_IR_CONFIG })); // { enabled, maxSlots }
   const [scoringRules, setScoringRules] = useState(() => defaultScoringRules());
   const [lmDirty, setLmDirty] = useState(false); // true while League Management has unapplied edits
+  const [dismissedWelcome, setDismissedWelcome] = useState(false); // session-only skip for the welcome prompt
 
   const t = darkMode ? THEMES.dark : THEMES.light;
   const isCommissioner = dbUser?.role === "commissioner";
@@ -66,6 +68,14 @@ export default function LeagueView({ leagueId, authUser, darkMode, toggleDark, s
 
   // canEdit: true if Open Scoring Mode is on, OR if user is commissioner, OR if user is assigned
   const canEdit = openScoringMode || isCommissioner || isAssigned;
+
+  // True the first time a seated member (commissioner or assigned player) has
+  // no team_color yet — covers commissioners seated by create_league (never
+  // prompted) and anyone assigned the old way via CommissionerSettings
+  // (name only, no color). Clears itself once set_my_team saves a color, and
+  // reappears on a future visit if skipped rather than saved.
+  const needsWelcome = !!dbUser && !dbUser.team_color && (isCommissioner || isAssigned) && !dismissedWelcome;
+  const takenColors = leagueUsers.map(u => u.team_color).filter(Boolean);
 
   useEffect(() => {
     if (!authUser) { setDbUser(null); return; }
@@ -636,6 +646,20 @@ export default function LeagueView({ leagueId, authUser, darkMode, toggleDark, s
     <div style={{ fontFamily: FONT_SANS, minHeight: "100vh", background: t.bg, color: t.text }}>
       <style>{css}</style>
 
+      {needsWelcome && (
+        <WelcomeModal
+          t={t}
+          leagueId={leagueId}
+          defaultName={myPlayerName}
+          takenColors={takenColors}
+          onSaved={({ playerName, teamColor }) => {
+            setDbUser(prev => prev && { ...prev, player_name: playerName, team_color: teamColor });
+            showToast("Team saved");
+          }}
+          onSkip={() => setDismissedWelcome(true)}
+        />
+      )}
+
       <header style={{ background: t.header, borderBottom: `0.5px solid ${t.border}`, padding: "0 1.5rem", display: "flex", alignItems: "center", justifyContent: "space-between", height: 68 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <button onClick={() => navigate("/")} aria-label="Your leagues" style={{ width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", border: `0.5px solid ${t.gold}`, borderRadius: 4, fontFamily: FONT_SERIF, fontSize: 13, fontWeight: 600, color: t.gold, flexShrink: 0, background: "none", cursor: "pointer" }}>FFL</button>
@@ -652,7 +676,7 @@ export default function LeagueView({ leagueId, authUser, darkMode, toggleDark, s
                 <div style={{ fontFamily: FONT_SERIF, fontSize: 13, color: t.text }}>{myPlayerName || (isCommissioner ? "Commissioner" : authUser.email)}</div>
                 {isCommissioner && <div style={{ fontSize: 10, color: t.gold, border: `0.5px solid ${t.gold}`, borderRadius: 10, padding: "1px 7px", display: "inline-block", marginTop: 2 }}>Commissioner</div>}
               </div>
-              <LeagueSwitcher authUser={authUser} darkMode={darkMode} navigate={navigate} currentLeagueId={leagueId} />
+              <LeagueSwitcher authUser={authUser} darkMode={darkMode} navigate={navigate} currentLeagueId={leagueId} onShowJoinLeagueModal={onShowJoinLeagueModal} />
               <button onClick={onShowCreateLeagueModal} style={{ background: "none", border: `0.5px solid ${t.border}`, borderRadius: 6, padding: "5px 10px", fontSize: 12, color: t.textMuted, cursor: "pointer" }}>+ New League</button>
               <button onClick={signOut} style={{ background: "none", border: `0.5px solid ${t.border}`, borderRadius: 6, padding: "5px 10px", fontSize: 12, color: t.textMuted, cursor: "pointer" }}>Sign out</button>
             </>

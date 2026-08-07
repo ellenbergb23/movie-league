@@ -4,6 +4,23 @@ export const YEARS  = ["2023","2024","2025","2026"];
 export const PLAYER_COLORS = ["#4A90D9","#A855F7","#22C55E","#F97316","#94A3B8","#EC4899","#EF4444","#14B8A6"];
 export const GOLD = "#C9A84C";
 
+// Fixed 10-color palette for the join flow's team-color picker (Step 2c).
+// Matches team_count's 10-team cap exactly, and matches the v_valid_colors
+// array validated server-side in the join_league RPC — keep these in sync
+// if the palette ever changes.
+export const TEAM_COLORS = [
+  { hex: "#4A90D9", name: "Blue" },
+  { hex: "#A855F7", name: "Purple" },
+  { hex: "#22C55E", name: "Green" },
+  { hex: "#F97316", name: "Orange" },
+  { hex: "#EAB308", name: "Yellow" },
+  { hex: "#EC4899", name: "Pink" },
+  { hex: "#EF4444", name: "Red" },
+  { hex: "#14B8A6", name: "Teal" },
+  { hex: "#6366F1", name: "Indigo" },
+  { hex: "#94A3B8", name: "Slate" },
+];
+
 // Default IR configuration — matches pre-existing hardcoded behavior (IR on, 1 slot).
 export const DEFAULT_IR_CONFIG = { enabled: true, maxSlots: 1 };
 

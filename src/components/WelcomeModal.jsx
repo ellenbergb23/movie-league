@@ -10,7 +10,7 @@ import { TEAM_COLORS } from "../lib/constants";
 // "Skip for now" just dismisses for this session rather than writing a
 // permanent flag, so there's nothing new to migrate and no one gets stuck.
 export function WelcomeModal({ t, leagueId, defaultName, takenColors, onSaved, onSkip }) {
-  const [playerName, setPlayerName] = useState(defaultName || "");
+  const [playerName, setPlayerName] = useState("");
   const [teamColor, setTeamColor] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -39,7 +39,7 @@ export function WelcomeModal({ t, leagueId, defaultName, takenColors, onSaved, o
         <p style={{ fontSize: 13, color: t.textMuted, marginBottom: 20 }}>Set your name and team color so everyone can tell your team apart.</p>
 
         <label style={label}>Your name</label>
-        <input style={inp} value={playerName} onChange={e => setPlayerName(e.target.value)} placeholder="e.g. Jordan" />
+        <input style={inp} value={playerName} onChange={e => setPlayerName(e.target.value)} placeholder={defaultName ? `e.g. Jordan (was "${defaultName}")` : "e.g. Jordan"} />
 
         <label style={label}>Team color</label>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 20 }}>

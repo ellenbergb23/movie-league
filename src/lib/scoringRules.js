@@ -79,13 +79,20 @@ export function normalizeRules(saved) {
   };
 }
 
-// Applies a mode preset to an existing rules draft, toggling section on/off flags only —
-// existing point values/breakpoints are left untouched so a commissioner's custom numbers
-// survive a mode switch. "custom" just tags the draft as custom without changing any flags.
+// Applies a mode preset to an existing rules draft. Picking a real preset (classic /
+// boxOfficeOnly / oscars) resets ALL point values and breakpoints back to shipped defaults
+// for that preset, discarding any custom numbers — the mode is meant to be a known quantity.
+// Picking "custom" is the one exception: it just tags the draft as custom and leaves every
+// value exactly as it was, since there's no preset to reset to.
 export function applyLeagueMode(rules, modeId) {
-  const next = cloneRules(rules);
+  if (modeId === "custom") {
+    const next = cloneRules(rules);
+    next.mode = "custom";
+    return next;
+  }
+
+  const next = defaultScoringRules();
   next.mode = modeId;
-  if (modeId === "custom") return next;
 
   const allOscarsOn = modeId === "oscars";
   next.oscarCategories = next.oscarCategories.map(c => ({ ...c, enabled: allOscarsOn }));

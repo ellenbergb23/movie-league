@@ -155,7 +155,11 @@ export function LeagueManagement({ rules, updateScoringRules, onDirtyChange, t, 
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <div style={{ background: t.surface, border: `0.5px solid ${t.borderStrong}`, borderRadius: 4, padding: 20, maxWidth: 340 }}>
             <p style={{ fontFamily: FONT_SERIF, fontSize: 15, fontWeight: 600, color: t.text, marginBottom: 8 }}>Switch to {LEAGUE_MODES.find(m => m.id === pendingMode)?.label}?</p>
-            <p style={{ fontSize: 12, color: t.textMuted, marginBottom: 16 }}>This overhauls which scoring categories are enabled for the league. You'll still need to click Apply Changes to save it.</p>
+            <p style={{ fontSize: 12, color: t.textMuted, marginBottom: 16 }}>
+              {pendingMode === "custom"
+                ? "This tags your rules as Custom. All current point values and breakpoints are kept as-is. You'll still need to click Apply Changes to save it."
+                : "This resets ALL point values and breakpoints to this mode's defaults and turns categories on/off accordingly — any custom numbers you've entered will be lost. You'll still need to click Apply Changes to save it."}
+            </p>
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
               <button onClick={cancelModeSwitch} style={{ fontSize: 13, padding: "7px 14px", borderRadius: 4, border: `0.5px solid ${t.border}`, background: "transparent", color: t.textSub, cursor: "pointer", fontWeight: 600 }}>Cancel</button>
               <button onClick={confirmModeSwitch} style={{ fontSize: 13, padding: "7px 14px", borderRadius: 4, border: "none", background: t.gold, color: "#fff", cursor: "pointer", fontWeight: 600 }}>Switch Mode</button>
@@ -247,7 +251,7 @@ export function LeagueManagement({ rules, updateScoringRules, onDirtyChange, t, 
           })}
         </div>
         <p style={{ fontSize: 11, color: t.textMuted, marginTop: 10, marginBottom: 0 }}>
-          Switching modes sets which scoring categories are on or off league-wide. Point values you've customized are kept.
+          Switching to Classic, Box Office Only, or Oscars Mode resets point values and breakpoints to that mode's defaults. Switching to Custom keeps your current values as-is.
         </p>
       </Section>
 

@@ -11,6 +11,7 @@ export function DraftBoard({ draft, players, movies, canEdit, isCommissioner, op
   const [tmdbSwapResults, setTmdbSwapResults] = useState([]);
   const [tmdbSwapLoading, setTmdbSwapLoading] = useState(false);
   const [confirmIR, setConfirmIR] = useState(null);
+  const [breakdownView, setBreakdownView] = useState({}); // { [player]: true } when showing compact scoring breakdown
 
   async function handleSwapQueryChange(value) {
     setSwapQuery(value);
@@ -110,16 +111,59 @@ export function DraftBoard({ draft, players, movies, canEdit, isCommissioner, op
           return s + calcFilmScore(f, scoring, rules);
         }, 0);
         const isFocused = focusPlayer === player;
+        const showBreakdown = !!breakdownView[player];
 
         return (
           <Card key={player} t={t} style={{ marginBottom: 10, borderLeft: `3px solid ${color}`, outline: isFocused ? `2px solid ${t.gold}` : "none", outlineOffset: 2, overflow: "visible" }}>
             <div id={`player-${player.replace(/\s/g, "-")}`} style={{ position: "sticky", top: 0, zIndex: 3, background: t.surface, display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, padding: "4px 0", borderBottom: `0.5px solid ${t.border}` }}>
               <span style={{ fontFamily: FONT_SERIF, fontSize: 15, fontWeight: 600, color: t.text }}>{player}</span>
-              <span style={{ fontSize: 13, fontFamily: "monospace", color: t.gold, fontWeight: 600 }}>{total} pts</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <button
+                  onClick={() => setBreakdownView(v => ({ ...v, [player]: !v[player] }))}
+                  style={{ fontSize: 9, color: t.textMuted, background: "none", border: `0.5px solid ${t.border}`, borderRadius: 4, cursor: "pointer", padding: "3px 7px", fontWeight: 600, letterSpacing: "0.03em" }}
+                >
+                  {showBreakdown ? "poster view" : "scoring breakdown"}
+                </button>
+                <span style={{ fontSize: 13, fontFamily: "monospace", color: t.gold, fontWeight: 600 }}>{total} pts</span>
+              </div>
             </div>
 
-            {/* Single grid — picks + IR box all flow together. 7 fixed columns so Rounds 1–7
-                sit on one row and S1/S2 (plus any IR box) wrap to the next. */}
+            {showBreakdown ? (
+              /* Compact scoring-breakdown view — one row per pick showing how the team's total
+                 is made up, without poster art. IR'd films show as zeroed/excluded. */
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                {picks.map((film, ri) => {
+                  const round = ["1","2","3","4","5","6","7","S1","S2"][ri];
+                  const isOnIR = film && irFilms.includes(film);
+                  const score = film && !isOnIR ? calcFilmScore(film, scoring, rules) : null;
+                  const released = film && !isOnIR ? isFilmReleased(film, scoring) : false;
+                  return (
+                    <div key={ri} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 8px", borderRadius: 4, background: t.surface2, border: `0.5px solid ${t.border}` }}>
+                      <span style={{ fontSize: 9, color: t.textMuted, fontWeight: 700, width: 22, flexShrink: 0 }}>{round}</span>
+                      <span style={{ flex: 1, fontSize: 11, color: film ? t.text : t.textMuted, fontStyle: film ? "normal" : "italic", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {film ? film : "TBD"}
+                      </span>
+                      {isOnIR ? (
+                        <span style={{ fontSize: 9, color: t.red, fontWeight: 700 }}>IR</span>
+                      ) : film && released ? (
+                        <span style={{ fontSize: 11, fontFamily: "monospace", color: t.textSub, fontWeight: 600 }}>{score} {score === 1 ? "pt" : "pts"}</span>
+                      ) : film ? (
+                        <span style={{ fontSize: 10, color: t.textMuted, fontStyle: "italic" }}>unreleased</span>
+                      ) : null}
+                    </div>
+                  );
+                })}
+                {irFilms.map(irFilm => (
+                  <div key={irFilm} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 8px", borderRadius: 4, background: t.redBg, border: `0.5px solid ${t.red}` }}>
+                    <span style={{ fontSize: 9, color: t.red, fontWeight: 700, width: 22, flexShrink: 0 }}>IR</span>
+                    <span style={{ flex: 1, fontSize: 11, color: t.red, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{irFilm}</span>
+                    <span style={{ fontSize: 10, color: t.red, fontStyle: "italic" }}>0 pts</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+            /* Single grid — picks + IR box all flow together. 7 fixed columns so Rounds 1–7
+                sit on one row and S1/S2 (plus any IR box) wrap to the next. */
             <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(110px, 1fr))", gap: 8 }}>
               {picks.map((film, ri) => {
                 const round = ["1","2","3","4","5","6","7","S1","S2"][ri];
@@ -215,7 +259,7 @@ export function DraftBoard({ draft, players, movies, canEdit, isCommissioner, op
                       {irFilm}
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "center" }}>
-                      <Poster film={irFilm} scoring={scoring} size="small" t={t} />
+                      <Poster film={irFilm} scoring={scoring} size="draft" t={t} />
                     </div>
                   </div>
                   {isCommissioner && (
@@ -229,6 +273,7 @@ export function DraftBoard({ draft, players, movies, canEdit, isCommissioner, op
                 </div>
               ))}
             </div>
+            )}
           </Card>
         );
       })}

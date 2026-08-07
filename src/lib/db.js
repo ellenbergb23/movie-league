@@ -58,20 +58,38 @@ export async function dbRenameMovie(leagueId, oldTitle, newTitle) {
     await supabase.from("scores").delete().eq("league_id", leagueId).eq("film", oldTitle);
   }
 }
+// Renames a player across draft_picks, league_members, and the
+// settings.players JSON in one transaction (see rename_player in the
+// migration — SECURITY DEFINER, checks server-side that the caller is the
+// commissioner, has Open Scoring Mode on, or is renaming their own team,
+// since this was previously three separate raw client writes with no
+// server-side authorization check).
 export async function dbRenamePlayer(leagueId, oldName, newName, players) {
-  await supabase.from("draft_picks").update({ player_name: newName }).eq("league_id", leagueId).eq("player_name", oldName);
-  const newPlayers = players.map(p => p === oldName ? newName : p);
-  await dbSet(leagueId, "players", JSON.stringify(newPlayers));
-  await supabase.from("league_members").update({ player_name: newName }).eq("league_id", leagueId).eq("player_name", oldName);
-  return newPlayers;
+  const { data, error } = await supabase.rpc("rename_player", {
+    p_league_id: leagueId,
+    p_old_name: oldName,
+    p_new_name: newName,
+    p_current_players: players,
+  });
+  if (error) throw error;
+  const row = Array.isArray(data) ? data[0] : data;
+  return row?.out_players ? JSON.parse(row.out_players) : players;
 }
 export async function dbGetLeagueUsers(leagueId) {
   const { data } = await supabase.from("league_members").select("*").eq("league_id", leagueId);
   // alias user_id -> id so existing callers (LeagueView.jsx) that match rows by `.id` keep working
   return (data || []).map(row => ({ ...row, id: row.user_id }));
 }
+// Commissioner ties a signed-up-but-unseated member to a roster name (see
+// assign_player in the migration — SECURITY DEFINER, checks server-side
+// that the caller is the commissioner rather than trusting the UI gate).
 export async function dbAssignPlayer(leagueId, userId, playerName) {
-  await supabase.from("league_members").update({ player_name: playerName }).eq("user_id", userId).eq("league_id", leagueId);
+  const { error } = await supabase.rpc("assign_player", {
+    p_league_id: leagueId,
+    p_user_id: userId,
+    p_player_name: playerName,
+  });
+  if (error) throw error;
 }
 export async function dbGetCurrentUser(leagueId, userId) {
   const { data } = await supabase.from("league_members").select("*").eq("user_id", userId).eq("league_id", leagueId).maybeSingle();

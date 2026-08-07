@@ -172,16 +172,24 @@ export default function LeagueView({ leagueId, authUser, darkMode, toggleDark, s
   async function renamePlayer(oldName, newName) {
     if (!newName.trim() || newName === oldName) return;
     const n = newName.trim();
-    const newPlayers = await dbRenamePlayer(leagueId, oldName, n, players);
-    setPlayers(newPlayers);
-    setDraft(prev => { const next = { ...prev }; next[n] = next[oldName]; delete next[oldName]; return next; });
-    showToast("Player renamed");
+    try {
+      const newPlayers = await dbRenamePlayer(leagueId, oldName, n, players);
+      setPlayers(newPlayers);
+      setDraft(prev => { const next = { ...prev }; next[n] = next[oldName]; delete next[oldName]; return next; });
+      showToast("Player renamed");
+    } catch (e) {
+      showToast(e.message || "Couldn't rename player");
+    }
   }
 
   async function assignPlayer(userId, playerName) {
-    await dbAssignPlayer(leagueId, userId, playerName);
-    setLeagueUsers(prev => prev.map(u => u.id === userId ? { ...u, player_name: playerName } : u));
-    showToast("Player assigned");
+    try {
+      await dbAssignPlayer(leagueId, userId, playerName);
+      setLeagueUsers(prev => prev.map(u => u.id === userId ? { ...u, player_name: playerName } : u));
+      showToast("Player assigned");
+    } catch (e) {
+      showToast(e.message || "Couldn't assign player");
+    }
   }
 
   async function updateScoring(film, field, value) {

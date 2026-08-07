@@ -22,14 +22,12 @@ export function CreateLeagueModal({ t, authUser, onAuth, onClose, showToast }) {
 
     setLoading(true);
     try {
-      let userId = authUser?.id;
-      if (!userId) {
+      if (!authUser) {
         const { data, error: signUpErr } = await supabase.auth.signUp({ email: email.trim(), password });
         if (signUpErr) { setError(signUpErr.message); setLoading(false); return; }
-        userId = data.user.id;
         onAuth?.(data.user);
       }
-      const created = await dbCreateLeague(userId, { name: name.trim(), teamCount, filmsPerTeam, visibility });
+      const created = await dbCreateLeague({ name: name.trim(), teamCount, filmsPerTeam, visibility });
       setResult(created);
       showToast?.("League created");
     } catch (e) {

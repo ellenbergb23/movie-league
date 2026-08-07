@@ -16,6 +16,10 @@ export const OSCAR_CATEGORIES = [
   { name: "Best Original Screenplay", nomPts: 3, winPts: 5 },
   { name: "Best Cinematography", nomPts: 3, winPts: 5 },
   { name: "Best Film Editing", nomPts: 3, winPts: 5 },
+<<<<<<< Updated upstream
+=======
+  { name: "Best Feature Documentary", nomPts: 3, winPts: 5 },
+>>>>>>> Stashed changes
   { name: "Best Actor in a Supporting Role", nomPts: 1, winPts: 2 },
   { name: "Best Actress in a Supporting Role", nomPts: 1, winPts: 2 },
   { name: "Best Production Design", nomPts: 1, winPts: 2 },
@@ -23,7 +27,7 @@ export const OSCAR_CATEGORIES = [
   { name: "Best Animated Feature", nomPts: 1, winPts: 2 },
   { name: "Best Makeup", nomPts: 1, winPts: 2 },
   { name: "Best Original Score", nomPts: 1, winPts: 2 },
-  { name: "Best International Feature", nomPts: 1, winPts: 2 },
+  { name: "Best International Feature", nomPts: 3, winPts: 5 },
   { name: "Best Original Song", nomPts: 1, winPts: 2 },
   { name: "Best Casting", nomPts: 1, winPts: 1 },
   { name: "Best Sound", nomPts: 1, winPts: 2 },

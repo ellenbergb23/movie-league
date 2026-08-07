@@ -19,8 +19,10 @@ export function Leaderboard({ rankedPlayers, getPlayerTotal, draft, scoring, t, 
           // score and the avg the same way (both "—") instead of "0" next to "avg — pts",
           // and style the card as an empty state so it doesn't read as broken.
           const isEmpty = released === 0;
+          const RANK_COLORS = { 0: "#C9A84C", 1: "#B8B8C0", 2: "#C87F4A" }; // gold / silver / bronze
+          const rankColor = RANK_COLORS[i];
           return (
-            <Card key={player} t={t} style={isEmpty ? { borderStyle: "dashed" } : {}}>
+            <Card key={player} t={t} style={isEmpty ? { borderStyle: "dashed" } : rankColor ? { border: `2px solid ${rankColor}` } : {}}>
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <span style={{ fontFamily: FONT_SERIF, fontSize: 18, width: 28, textAlign: "center", color: t.textMuted }}>{String(i + 1).padStart(2, "0")}</span>
                 <div style={{ flex: 1 }}>

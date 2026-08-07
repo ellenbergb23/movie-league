@@ -2,18 +2,19 @@ import { useState, useEffect } from "react";
 import { calcFilmScore, getFilmOscarStatus, isFilmReleased, getBOPoints } from "../lib/scoring";
 import { resolveBOTier, formatBOLabel, getCriticsPoints, getAudiencePoints } from "../lib/scoringRules";
 import { formatRevenue } from "../lib/scoring-utils";
-import { Card, Poster, CollapsibleSL } from "./ui";
+import { Card, Poster, CollapsibleSL, ConfirmDialog } from "./ui";
 
 export function Scoring({ scoring, movies, canEdit, isCommissioner, requireAuth, updateScoring, updateScoringMulti, updateScoringRoot, updateOscarField, updateMovieName, scoringFilm, setScoringFilm, showToast, fetchFilmScoring, t, rules }) {
   const [film, setFilm] = useState(scoringFilm || movies[0]);
   const [renaming, setRenaming] = useState(false);
   const [renameVal, setRenameVal] = useState("");
-  const [filmSearch, setFilmSearch] = useState(film || "");
+  const [confirmRename, setConfirmRename] = useState(false);
+  const [filmSearch, setFilmSearch] = useState("");
   const [filmSearchOpen, setFilmSearchOpen] = useState(false);
   const [overrideManualFilm, setOverrideManualFilm] = useState(false); // false = Fill Auto Scores Only, true = Override Manual Scores
   const [fetchingMode, setFetchingMode] = useState(null); // "bo" | "rt" | "all" | null
   const [oscarsOpen, setOscarsOpen] = useState(false);
-  useEffect(() => { if (scoringFilm) { setFilm(scoringFilm); setFilmSearch(scoringFilm); } }, [scoringFilm]);
+  useEffect(() => { if (scoringFilm) { setFilm(scoringFilm); } }, [scoringFilm]);
   useEffect(() => { window.scrollTo(0, 0); }, [film]);
   // Auto-expand the Oscars list when the film already has noms/wins recorded, otherwise
   // start collapsed — the flat category list is long and most films need zero scrolling.
@@ -34,7 +35,15 @@ export function Scoring({ scoring, movies, canEdit, isCommissioner, requireAuth,
 
   function withAuth(fn) { if (canEdit) fn(); else requireAuth(fn); }
   function set(field, val) { withAuth(() => updateScoring(film, field, val)); }
-  function selectFilm(m) { setFilm(m); setScoringFilm(m); setFilmSearch(m); setFilmSearchOpen(false); setRenaming(false); }
+  function selectFilm(m) { setFilm(m); setScoringFilm(m); setFilmSearch(""); setFilmSearchOpen(false); setRenaming(false); }
+
+  function doRename() {
+    updateMovieName(film, renameVal);
+    setFilm(renameVal);
+    setScoringFilm(renameVal);
+    setRenaming(false);
+    setConfirmRename(false);
+  }
 
   async function runFilmFetch(mode) {
     setFetchingMode(mode);
@@ -47,29 +56,46 @@ export function Scoring({ scoring, movies, canEdit, isCommissioner, requireAuth,
 
   return (
     <div>
+      <div style={{ position: "relative", marginBottom: 12 }}>
+        <input
+          value={filmSearch}
+          onChange={e => { setFilmSearch(e.target.value); setFilmSearchOpen(true); }}
+          onFocus={() => setFilmSearchOpen(true)}
+          onBlur={() => setTimeout(() => setFilmSearchOpen(false), 150)}
+          placeholder="Search films to view their scoring page…"
+          style={{ ...sel, width: "100%" }}
+        />
+        {filmSearchOpen && filmSearch.trim() && (
+          <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: t.surface, border: `0.5px solid ${t.border}`, borderRadius: 6, marginTop: 2, zIndex: 20, maxHeight: 220, overflowY: "auto", boxShadow: "0 4px 12px rgba(0,0,0,0.15)" }}>
+            {filteredFilms.length === 0 && <div style={{ padding: "8px 10px", fontSize: 12, color: t.textMuted }}>No matches</div>}
+            {filteredFilms.map(m => (
+              <div key={m} onMouseDown={() => selectFilm(m)} style={{ padding: "7px 10px", cursor: "pointer", fontSize: 13, color: t.text, borderBottom: `0.5px solid ${t.border}` }} onMouseEnter={e => e.currentTarget.style.background = t.surface2} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                {m}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {confirmRename && (
+        <ConfirmDialog
+          t={t}
+          title={`Rename "${film}" to "${renameVal}"?`}
+          body="This updates the film's title everywhere in the league — draft board, scoring, and all films — and looks up a new poster to match."
+          confirmLabel="Rename"
+          danger={false}
+          onCancel={() => setConfirmRename(false)}
+          onConfirm={doRename}
+        />
+      )}
+
       <div style={{ background: status.winner ? t.goldBg : t.surface, border: status.winner ? `2px solid ${t.gold}` : status.nominated ? `1.5px solid ${t.gold}` : `0.5px solid ${t.border}`, borderRadius: 10, padding: "14px 16px", marginBottom: 14 }}>
         <div style={{ display: "flex", alignItems: "flex-start", gap: 12, marginBottom: renaming ? 10 : 0 }}>
           <Poster film={film} scoring={scoring} size="large" t={t} />
           <div style={{ flex: 1 }}>
-            <div style={{ position: "relative", marginBottom: 8 }}>
-              <input
-                value={filmSearch}
-                onChange={e => { setFilmSearch(e.target.value); setFilmSearchOpen(true); }}
-                onFocus={e => { setFilmSearchOpen(true); e.target.select(); }}
-                onBlur={() => setTimeout(() => setFilmSearchOpen(false), 150)}
-                placeholder="Search films…"
-                style={{ ...sel, width: "100%", fontWeight: 600, fontSize: 14 }}
-              />
-              {filmSearchOpen && (
-                <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: t.surface, border: `0.5px solid ${t.border}`, borderRadius: 6, marginTop: 2, zIndex: 20, maxHeight: 220, overflowY: "auto", boxShadow: "0 4px 12px rgba(0,0,0,0.15)" }}>
-                  {filteredFilms.length === 0 && <div style={{ padding: "8px 10px", fontSize: 12, color: t.textMuted }}>No matches</div>}
-                  {filteredFilms.map(m => (
-                    <div key={m} onMouseDown={() => selectFilm(m)} style={{ padding: "7px 10px", cursor: "pointer", fontSize: 13, color: t.text, borderBottom: `0.5px solid ${t.border}` }} onMouseEnter={e => e.currentTarget.style.background = t.surface2} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-                      {m}
-                    </div>
-                  ))}
-                </div>
-              )}
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+              <span style={{ fontSize: 18, fontWeight: 600, color: t.text }}>{film}</span>
+              {(canEdit || isCommissioner) && !renaming && <button onClick={() => withAuth(() => { setRenaming(true); setRenameVal(film); })} style={{ fontSize: 11, color: t.textMuted, background: "none", border: `0.5px solid ${t.border}`, borderRadius: 5, cursor: "pointer", padding: "3px 8px", flexShrink: 0 }}>rename</button>}
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               {isFilmReleased(film, scoring) ? (
@@ -93,14 +119,13 @@ export function Scoring({ scoring, movies, canEdit, isCommissioner, requireAuth,
               })()}
               {status.winner && <span style={{ fontSize: 11, background: t.gold, color: "#fff", padding: "3px 9px", borderRadius: 5, fontWeight: 700 }}>BEST PICTURE ✦</span>}
               {status.nominated && !status.winner && <span style={{ fontSize: 11, background: t.goldBg, color: t.gold, padding: "3px 9px", borderRadius: 5, border: `0.5px solid ${t.gold}`, fontWeight: 600 }}>BP NOM</span>}
-              {(canEdit || isCommissioner) && !renaming && <button onClick={() => withAuth(() => { setRenaming(true); setRenameVal(film); })} style={{ fontSize: 11, color: t.textMuted, background: "none", border: `0.5px solid ${t.border}`, borderRadius: 5, cursor: "pointer", padding: "3px 8px" }}>rename</button>}
             </div>
           </div>
         </div>
         {renaming && (
           <div style={{ display: "flex", gap: 8 }}>
-            <input value={renameVal} onChange={e => setRenameVal(e.target.value)} onKeyDown={e => { if (e.key === "Enter") { updateMovieName(film, renameVal); setFilm(renameVal); setScoringFilm(renameVal); setFilmSearch(renameVal); setRenaming(false); } if (e.key === "Escape") setRenaming(false); }} autoFocus style={{ flex: 1, fontSize: 13, padding: "6px 10px", borderRadius: 6, border: `0.5px solid ${t.borderStrong}`, background: t.surface2, color: t.text }} />
-            <button onClick={() => { updateMovieName(film, renameVal); setFilm(renameVal); setScoringFilm(renameVal); setFilmSearch(renameVal); setRenaming(false); }} style={{ fontSize: 12, padding: "6px 14px", borderRadius: 6, border: "none", background: t.gold, color: "#fff", cursor: "pointer", fontWeight: 600 }}>Save</button>
+            <input value={renameVal} onChange={e => setRenameVal(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && renameVal.trim() && renameVal !== film) setConfirmRename(true); if (e.key === "Escape") setRenaming(false); }} autoFocus style={{ flex: 1, fontSize: 13, padding: "6px 10px", borderRadius: 6, border: `0.5px solid ${t.borderStrong}`, background: t.surface2, color: t.text }} />
+            <button onClick={() => { if (renameVal.trim() && renameVal !== film) setConfirmRename(true); }} style={{ fontSize: 12, padding: "6px 14px", borderRadius: 6, border: "none", background: t.gold, color: "#fff", cursor: "pointer", fontWeight: 600 }}>Save</button>
             <button onClick={() => setRenaming(false)} style={{ fontSize: 12, padding: "6px 10px", borderRadius: 6, border: `0.5px solid ${t.border}`, background: "transparent", color: t.textMuted, cursor: "pointer" }}>Cancel</button>
           </div>
         )}

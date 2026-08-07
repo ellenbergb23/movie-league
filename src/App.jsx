@@ -241,6 +241,23 @@ export default function App() {
     setScoring(prev => { const next = { ...prev }; if (next[oldName]) { next[n] = next[oldName]; delete next[oldName]; } return next; });
     await dbRenameMovie(oldName, n);
     showToast("Film renamed");
+
+    // Auto-populate the poster from TMDB under the new title — same exact-match logic as
+    // backfillPosters, so a rename (e.g. fixing a typo) doesn't leave a stale/missing poster.
+    try {
+      const results = await searchTMDB(n);
+      const exactMatches = results.filter(r => r.title.trim().toLowerCase() === n.trim().toLowerCase());
+      const best = exactMatches.find(r => ["2025", "2026", "2027"].includes(r.release_date?.slice(0, 4))) || exactMatches[0];
+      if (best) {
+        setScoring(prev => {
+          const updatedData = { ...(prev[n] || {}), poster_path: best.poster_path };
+          dbSetScore(n, updatedData);
+          return { ...prev, [n]: updatedData };
+        });
+      }
+    } catch (e) {
+      console.error("TMDB poster lookup on rename failed:", e);
+    }
   }
 
   async function deleteMovie(title) {

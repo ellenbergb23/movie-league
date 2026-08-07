@@ -634,7 +634,7 @@ export default function App() {
 
   const rankedPlayers = [...players].sort((a, b) => getPlayerTotal(b) - getPlayerTotal(a));
 
-  const css = `* { box-sizing: border-box; margin: 0; padding: 0; } body { background: ${t.bg}; } select { appearance: none; -webkit-appearance: none; } input[type=checkbox] { accent-color: ${t.gold}; width: 15px; height: 15px; cursor: pointer; } .clickable:hover { opacity: 0.75; }`;
+  const css = `* { box-sizing: border-box; margin: 0; padding: 0; } body { background: ${t.bg}; } select { appearance: none; -webkit-appearance: none; } input[type=checkbox] { accent-color: ${t.gold}; width: 15px; height: 15px; cursor: pointer; } .clickable:hover { opacity: 0.75; } .ffl-nav { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; } .ffl-nav::-webkit-scrollbar { display: none; } .ffl-nav button { flex-shrink: 0; } .ffl-draft-grid { grid-template-columns: repeat(7, minmax(110px, 1fr)); } @media (max-width: 700px) { .ffl-draft-grid { grid-template-columns: 1fr !important; } }`;
 
   if (authLoading || dataLoading) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: t.bg, color: t.textMuted, fontFamily: FONT_SANS, fontSize: 14 }}>Loading…</div>;
 
@@ -685,7 +685,7 @@ export default function App() {
         </div>
       </header>
 
-      <nav style={{ background: t.header, borderBottom: `0.5px solid ${t.border}`, padding: "0 1.5rem", display: "flex" }}>
+      <nav className="ffl-nav" style={{ background: t.header, borderBottom: `0.5px solid ${t.border}`, padding: "0 1.5rem", display: "flex" }}>
         {tabs.map(tb => (
           <button
             key={tb}

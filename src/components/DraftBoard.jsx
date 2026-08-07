@@ -253,7 +253,7 @@ export function DraftBoard({ draft, players, movies, canEdit, isCommissioner, op
             ) : (
             /* Single grid — picks + IR box all flow together. 7 fixed columns so Rounds 1–7
                 sit on one row and S1/S2 (plus any IR box) wrap to the next. */
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(110px, 1fr))", gap: 8 }}>
+            <div className="ffl-draft-grid" style={{ display: "grid", gap: 8 }}>
               {picks.map((film, ri) => {
                 const round = ["1","2","3","4","5","6","7","S1","S2"][ri];
                 const isOnIR = film && irFilms.includes(film);

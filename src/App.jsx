@@ -689,7 +689,13 @@ export default function App() {
 
       <nav style={{ background: t.header, borderBottom: `0.5px solid ${t.border}`, padding: "0 1.5rem", display: "flex" }}>
         {tabs.map(tb => (
-          <button key={tb} onClick={() => requestTabChange(tb)} style={{ fontFamily: FONT_SERIF, padding: "16px 14px 13px", fontSize: 14, fontWeight: tab === tb ? 700 : 400, color: tab === tb ? t.navActive : (tb === "commissioner" || tb === "league management") ? t.gold : t.navInactive, background: "none", border: "none", borderBottom: tab === tb ? `2px solid ${(tab === "commissioner" || tab === "league management") ? t.gold : t.navActive}` : "2px solid transparent", cursor: "pointer" }}>{tabLabels[tb]}</button>
+          <button
+            key={tb}
+            onClick={() => requestTabChange(tb)}
+            onMouseEnter={e => { if (tab !== tb) e.currentTarget.style.color = t.gold; }}
+            onMouseLeave={e => { if (tab !== tb) e.currentTarget.style.color = (tb === "commissioner" || tb === "league management") ? t.gold : t.navInactive; }}
+            style={{ fontFamily: FONT_SERIF, padding: "16px 14px 13px", fontSize: 14, fontWeight: tab === tb ? 700 : 400, color: tab === tb ? t.navActive : (tb === "commissioner" || tb === "league management") ? t.gold : t.navInactive, background: "none", border: "none", borderBottom: tab === tb ? `2px solid ${(tab === "commissioner" || tab === "league management") ? t.gold : t.navActive}` : "2px solid transparent", cursor: "pointer", transition: "color 0.15s" }}
+          >{tabLabels[tb]}</button>
         ))}
       </nav>
 

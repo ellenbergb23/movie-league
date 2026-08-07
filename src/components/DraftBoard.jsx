@@ -120,7 +120,9 @@ export function DraftBoard({ draft, players, movies, canEdit, isCommissioner, op
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <button
                   onClick={() => setBreakdownView(v => ({ ...v, [player]: !v[player] }))}
-                  style={{ fontSize: 9, color: t.textMuted, background: "none", border: `0.5px solid ${t.border}`, borderRadius: 4, cursor: "pointer", padding: "3px 7px", fontWeight: 600, letterSpacing: "0.03em" }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = t.gold; e.currentTarget.style.color = t.gold; }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = t.border; e.currentTarget.style.color = t.textMuted; }}
+                  style={{ fontSize: 9, color: t.textMuted, background: "none", border: `0.5px solid ${t.border}`, borderRadius: 4, cursor: "pointer", padding: "3px 7px", fontWeight: 600, letterSpacing: "0.03em", transition: "border-color 0.15s, color 0.15s" }}
                 >
                   {showBreakdown ? "poster view" : "scoring breakdown"}
                 </button>
@@ -162,9 +164,9 @@ export function DraftBoard({ draft, players, movies, canEdit, isCommissioner, op
                               {displayFilm ? (
                                 <span
                                   onClick={() => goToFilmScoring(displayFilm)}
-                                  style={{ color: t.text, fontWeight: 600, cursor: "pointer", textDecoration: "underline", textDecorationColor: "transparent", transition: "text-decoration-color 0.15s" }}
-                                  onMouseEnter={e => e.currentTarget.style.textDecorationColor = t.gold}
-                                  onMouseLeave={e => e.currentTarget.style.textDecorationColor = "transparent"}
+                                  style={{ color: t.text, fontWeight: 600, cursor: "pointer", textDecoration: "underline", textDecorationColor: "transparent", transition: "text-decoration-color 0.15s, color 0.15s" }}
+                                  onMouseEnter={e => { e.currentTarget.style.textDecorationColor = t.gold; e.currentTarget.style.color = t.gold; }}
+                                  onMouseLeave={e => { e.currentTarget.style.textDecorationColor = "transparent"; e.currentTarget.style.color = t.text; }}
                                 >
                                   {displayFilm}
                                 </span>
@@ -198,7 +200,9 @@ export function DraftBoard({ draft, players, movies, canEdit, isCommissioner, op
                               <div style={{ display: "flex", gap: 4, marginTop: 4 }}>
                                 <button
                                   onClick={() => { setEditingSlot(slotKey); setSwapQuery(""); }}
-                                  style={{ fontSize: 9, color: isEmpty ? t.gold : t.textMuted, background: "none", border: isEmpty ? `0.5px solid ${t.gold}` : `0.5px solid ${t.border}`, borderRadius: 4, cursor: "pointer", padding: "2px 6px", fontWeight: 600 }}
+                                  onMouseEnter={e => { e.currentTarget.style.background = t.gold; e.currentTarget.style.borderColor = t.gold; e.currentTarget.style.color = "#1D1B18"; }}
+                                  onMouseLeave={e => { e.currentTarget.style.background = "none"; e.currentTarget.style.borderColor = t.border; e.currentTarget.style.color = t.textMuted; }}
+                                  style={{ fontSize: 9, color: t.textMuted, background: "none", border: `0.5px solid ${t.border}`, borderRadius: 4, cursor: "pointer", padding: "2px 6px", fontWeight: 600, transition: "background 0.15s, border-color 0.15s, color 0.15s" }}
                                 >
                                   {isEmpty ? "add film" : "swap"}
                                 </button>
@@ -223,9 +227,9 @@ export function DraftBoard({ draft, players, movies, canEdit, isCommissioner, op
                             </span>
                             <span
                               onClick={() => goToFilmScoring(irFilm)}
-                              style={{ color: t.textMuted, cursor: "pointer", textDecoration: "underline", textDecorationColor: "transparent", transition: "text-decoration-color 0.15s" }}
-                              onMouseEnter={e => e.currentTarget.style.textDecorationColor = t.gold}
-                              onMouseLeave={e => e.currentTarget.style.textDecorationColor = "transparent"}
+                              style={{ color: t.textMuted, cursor: "pointer", textDecoration: "underline", textDecorationColor: "transparent", transition: "text-decoration-color 0.15s, color 0.15s" }}
+                              onMouseEnter={e => { e.currentTarget.style.textDecorationColor = t.gold; e.currentTarget.style.color = t.gold; }}
+                              onMouseLeave={e => { e.currentTarget.style.textDecorationColor = "transparent"; e.currentTarget.style.color = t.textMuted; }}
                             >
                               {irFilm}
                             </span>
@@ -268,7 +272,7 @@ export function DraftBoard({ draft, players, movies, canEdit, isCommissioner, op
                       <div style={{ fontSize: 9, color: t.textMuted, marginBottom: 4, fontWeight: 600, letterSpacing: "0.06em" }}>RD {round}</div>
                       <div style={{ fontSize: 10, color: t.text, fontWeight: 600, marginBottom: 4, textAlign: "center", lineHeight: 1.2, height: 36, display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
                         {displayFilm
-                          ? <span onClick={() => goToFilmScoring(displayFilm)} style={{ cursor: "pointer", textDecoration: "underline", textDecorationColor: "transparent", transition: "text-decoration-color 0.15s" }} onMouseEnter={e => e.currentTarget.style.textDecorationColor = t.gold} onMouseLeave={e => e.currentTarget.style.textDecorationColor = "transparent"}>{displayFilm}</span>
+                          ? <span onClick={() => goToFilmScoring(displayFilm)} style={{ cursor: "pointer", textDecoration: "underline", textDecorationColor: "transparent", transition: "text-decoration-color 0.15s, color 0.15s" }} onMouseEnter={e => { e.currentTarget.style.textDecorationColor = t.gold; e.currentTarget.style.color = t.gold; }} onMouseLeave={e => { e.currentTarget.style.textDecorationColor = "transparent"; e.currentTarget.style.color = t.text; }}>{displayFilm}</span>
                           : isReplacement
                             ? <span style={{ color: t.gold, fontWeight: 700, fontSize: 9 }}>[replacement]</span>
                             : <span style={{ color: t.textMuted, fontWeight: 400 }}>TBD</span>
@@ -307,7 +311,9 @@ export function DraftBoard({ draft, players, movies, canEdit, isCommissioner, op
                         <div style={{ display: "flex", gap: 4 }}>
                           <button
                             onClick={() => { setEditingSlot(slotKey); setSwapQuery(""); }}
-                            style={{ flex: 1, fontSize: 9, color: isEmpty ? t.gold : t.textMuted, background: "none", border: isEmpty ? `0.5px solid ${t.gold}` : `0.5px solid ${t.border}`, borderRadius: 4, cursor: "pointer", padding: "2px 6px", fontWeight: 600 }}
+                            onMouseEnter={e => { e.currentTarget.style.background = t.gold; e.currentTarget.style.borderColor = t.gold; e.currentTarget.style.color = "#1D1B18"; }}
+                            onMouseLeave={e => { e.currentTarget.style.background = "none"; e.currentTarget.style.borderColor = t.border; e.currentTarget.style.color = t.textMuted; }}
+                            style={{ flex: 1, fontSize: 9, color: t.textMuted, background: "none", border: `0.5px solid ${t.border}`, borderRadius: 4, cursor: "pointer", padding: "2px 6px", fontWeight: 600, transition: "background 0.15s, border-color 0.15s, color 0.15s" }}
                           >
                             {isEmpty ? "add film" : "swap"}
                           </button>
@@ -323,7 +329,9 @@ export function DraftBoard({ draft, players, movies, canEdit, isCommissioner, op
                       ) : (
                         <button
                           onClick={() => { setEditingSlot(slotKey); setSwapQuery(""); }}
-                          style={{ fontSize: 9, color: t.gold, background: "none", border: `0.5px solid ${t.gold}`, borderRadius: 4, cursor: "pointer", padding: "2px 6px", fontWeight: 600 }}
+                          onMouseEnter={e => { e.currentTarget.style.background = t.gold; e.currentTarget.style.borderColor = t.gold; e.currentTarget.style.color = "#1D1B18"; }}
+                          onMouseLeave={e => { e.currentTarget.style.background = "none"; e.currentTarget.style.borderColor = t.border; e.currentTarget.style.color = t.textMuted; }}
+                          style={{ fontSize: 9, color: t.textMuted, background: "none", border: `0.5px solid ${t.border}`, borderRadius: 4, cursor: "pointer", padding: "2px 6px", fontWeight: 600, transition: "background 0.15s, border-color 0.15s, color 0.15s" }}
                         >
                           add film
                         </button>

@@ -130,8 +130,11 @@ export async function dbCreateLeague(creatorUserId, { name, teamCount, filmsPerT
   for (let i = 1; i < teamCount; i++) {
     rows.push({ user_id: null, league_id: id, role: "player", player_name: null, team_color: null });
   }
-  const { error: membersErr } = await supabase.from("league_members").insert(rows);
+  const { data: insertedMembers, error: membersErr } = await supabase.from("league_members").insert(rows).select("id");
   if (membersErr) throw membersErr;
+  if (!insertedMembers || insertedMembers.length !== teamCount) {
+    throw new Error(`Expected ${teamCount} team slots but only ${insertedMembers?.length || 0} were created. Check league_members RLS policies.`);
+  }
 
   return { id, joinCode };
 }

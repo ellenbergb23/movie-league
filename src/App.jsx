@@ -652,7 +652,7 @@ export default function App() {
       <style>{css}</style>
 
       {showAuthModal && <AuthModal t={t} onAuth={user => { setAuthUser(user); setShowAuthModal(false); }} onClose={() => setShowAuthModal(false)} />}
-      {showCreateLeagueModal && <CreateLeagueModal t={t} authUser={authUser} onClose={() => setShowCreateLeagueModal(false)} showToast={showToast} />}
+      {showCreateLeagueModal && <CreateLeagueModal t={t} authUser={authUser} onAuth={user => setAuthUser(user)} onClose={() => setShowCreateLeagueModal(false)} showToast={showToast} />}
       {toast && <div style={{ position: "fixed", top: 16, right: 16, background: t.gold, color: darkMode ? "#0A0A0A" : "#fff", padding: "9px 14px", borderRadius: 8, fontSize: 13, fontWeight: 500, zIndex: 999 }}>{toast}</div>}
 
       <header style={{ background: t.header, borderBottom: `0.5px solid ${t.border}`, padding: "0 1.5rem", display: "flex", alignItems: "center", justifyContent: "space-between", height: 68 }}>
@@ -675,7 +675,10 @@ export default function App() {
               <button onClick={signOut} style={{ background: "none", border: `0.5px solid ${t.border}`, borderRadius: 6, padding: "5px 10px", fontSize: 12, color: t.textMuted, cursor: "pointer" }}>Sign out</button>
             </>
           ) : (
-            <button onClick={() => setShowAuthModal(true)} style={{ background: "none", border: `0.5px solid ${t.border}`, borderRadius: 6, padding: "5px 12px", fontSize: 12, color: t.textSub, cursor: "pointer" }}>Log in</button>
+            <>
+              <button onClick={() => setShowCreateLeagueModal(true)} style={{ background: "none", border: `0.5px solid ${t.border}`, borderRadius: 6, padding: "5px 10px", fontSize: 12, color: t.textMuted, cursor: "pointer" }}>+ New League</button>
+              <button onClick={() => setShowAuthModal(true)} style={{ background: "none", border: `0.5px solid ${t.border}`, borderRadius: 6, padding: "5px 12px", fontSize: 12, color: t.textSub, cursor: "pointer" }}>Log in</button>
+            </>
           )}
           <button
             onClick={toggleDark}

@@ -1,11 +1,14 @@
 import { useState } from "react";
+import { supabase } from "../lib/supabase";
 import { dbCreateLeague } from "../lib/db";
 
-export function CreateLeagueModal({ t, authUser, onClose, showToast }) {
+export function CreateLeagueModal({ t, authUser, onAuth, onClose, showToast }) {
   const [name, setName] = useState("");
   const [teamCount, setTeamCount] = useState(10);
   const [filmsPerTeam, setFilmsPerTeam] = useState(9);
   const [visibility, setVisibility] = useState("private");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState(null); // { id, joinCode } | null
@@ -15,9 +18,18 @@ export function CreateLeagueModal({ t, authUser, onClose, showToast }) {
     if (!name.trim()) { setError("League name is required."); return; }
     if (teamCount < 1 || teamCount > 10) { setError("Teams must be between 1 and 10."); return; }
     if (filmsPerTeam < 1) { setError("Films per team must be at least 1."); return; }
+    if (!authUser && (!email.trim() || !password)) { setError("Enter an email and password to create your account."); return; }
+
     setLoading(true);
     try {
-      const created = await dbCreateLeague(authUser.id, { name: name.trim(), teamCount, filmsPerTeam, visibility });
+      let userId = authUser?.id;
+      if (!userId) {
+        const { data, error: signUpErr } = await supabase.auth.signUp({ email: email.trim(), password });
+        if (signUpErr) { setError(signUpErr.message); setLoading(false); return; }
+        userId = data.user.id;
+        onAuth?.(data.user);
+      }
+      const created = await dbCreateLeague(userId, { name: name.trim(), teamCount, filmsPerTeam, visibility });
       setResult(created);
       showToast?.("League created");
     } catch (e) {
@@ -53,6 +65,16 @@ export function CreateLeagueModal({ t, authUser, onClose, showToast }) {
                 </button>
               ))}
             </div>
+
+            {!authUser && (
+              <>
+                <label style={label}>Your email</label>
+                <input type="email" style={inp} value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" />
+                <label style={label}>Choose a password</label>
+                <input type="password" style={inp} value={password} onChange={e => setPassword(e.target.value)} placeholder="Password" />
+                <p style={{ fontSize: 11, color: t.textMuted, marginTop: -6, marginBottom: 16 }}>This creates your account — you'll be signed in as the commissioner of this league.</p>
+              </>
+            )}
 
             {error && <p style={{ fontSize: 12, color: t.red, marginBottom: 12 }}>{error}</p>}
 

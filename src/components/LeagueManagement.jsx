@@ -32,12 +32,15 @@ function ResetButton({ onClick, t }) {
   );
 }
 
-export function LeagueManagement({ rules, updateScoringRules, onDirtyChange, t, showToast, irConfig, updateIRConfig, movies, draftBoard, deleteMovie }) {
+export function LeagueManagement({ rules, updateScoringRules, onDirtyChange, t, showToast, irConfig, updateIRConfig, movies, draftBoard, deleteMovie, leagueName, onDeleteLeague }) {
   const [draft, setDraft] = useState(() => cloneRules(rules));
   const [pendingMode, setPendingMode] = useState(null); // mode id awaiting confirm
   const [pendingReset, setPendingReset] = useState(null); // { label, path } | null
   const [filmFilter, setFilmFilter] = useState("");
   const [confirmRemove, setConfirmRemove] = useState(null); // { film, owner } | null
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [deletingLeague, setDeletingLeague] = useState(false);
+  const [pendingDeleteLeague, setPendingDeleteLeague] = useState(false);
 
   // Finds which player currently has this film in a draft board slot, if any.
   function findDraftOwner(film) {
@@ -99,6 +102,17 @@ export function LeagueManagement({ rules, updateScoringRules, onDirtyChange, t, 
       return next;
     });
     setPendingReset(null);
+  }
+
+  async function handleDeleteLeague() {
+    if (deleteConfirmText !== leagueName) return;
+    setDeletingLeague(true);
+    try {
+      await onDeleteLeague();
+    } catch (err) {
+      setDeletingLeague(false);
+      showToast(err.message || "Couldn't delete league");
+    }
   }
 
   const inp = { fontSize: 13, padding: "6px 9px", borderRadius: 4, border: `0.5px solid ${t.borderStrong}`, background: t.surface2, color: t.text, width: "100%", boxSizing: "border-box" };
@@ -388,6 +402,48 @@ export function LeagueManagement({ rules, updateScoringRules, onDirtyChange, t, 
           </div>
         ))}
       </Section>
+
+      <Section title="Danger Zone" t={t}>
+        <p style={{ fontSize: 12, color: t.textMuted, lineHeight: 1.5, marginBottom: 10 }}>
+          Permanently deletes this league — all teams, draft picks, scores, and settings. This cannot be undone.
+        </p>
+        <button
+          onClick={() => { setDeleteConfirmText(""); setPendingDeleteLeague(true); }}
+          style={{ fontSize: 13, color: t.red, background: "none", border: `0.5px solid ${t.red}`, borderRadius: 4, cursor: "pointer", padding: "8px 16px", fontWeight: 600 }}
+        >
+          Delete League
+        </button>
+      </Section>
+
+      {pendingDeleteLeague && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 50, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ background: t.surface, border: `0.5px solid ${t.borderStrong}`, borderRadius: 4, padding: 20, maxWidth: 380 }}>
+            <p style={{ fontFamily: FONT_SERIF, fontSize: 15, fontWeight: 600, color: t.red, marginBottom: 8 }}>Delete "{leagueName}"?</p>
+            <p style={{ fontSize: 12, color: t.textMuted, marginBottom: 12, lineHeight: 1.5 }}>
+              This permanently removes the league and everything in it — teams, draft picks, scores, and settings — for everyone. This can't be undone.
+            </p>
+            <p style={{ fontSize: 12, color: t.textSub, marginBottom: 6 }}>
+              Type <strong>{leagueName}</strong> to confirm:
+            </p>
+            <input
+              value={deleteConfirmText}
+              onChange={e => setDeleteConfirmText(e.target.value)}
+              style={{ ...inp, marginBottom: 16 }}
+              autoFocus
+            />
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button onClick={() => setPendingDeleteLeague(false)} style={{ fontSize: 13, padding: "7px 14px", borderRadius: 4, border: `0.5px solid ${t.border}`, background: "transparent", color: t.textSub, cursor: "pointer", fontWeight: 600 }}>Cancel</button>
+              <button
+                onClick={handleDeleteLeague}
+                disabled={deleteConfirmText !== leagueName || deletingLeague}
+                style={{ fontSize: 13, padding: "7px 14px", borderRadius: 4, border: "none", background: t.red, color: "#fff", cursor: (deleteConfirmText === leagueName && !deletingLeague) ? "pointer" : "default", fontWeight: 600, opacity: (deleteConfirmText === leagueName && !deletingLeague) ? 1 : 0.5 }}
+              >
+                {deletingLeague ? "Deleting…" : "Delete League"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

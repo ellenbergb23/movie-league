@@ -166,6 +166,15 @@ export async function dbSetMyTeam(leagueId, { playerName, teamColor }) {
   if (error) throw error;
 }
 
+// Permanently deletes a league and all its data (see delete_league in the
+// migration — SECURITY DEFINER, checks the caller is that league's
+// commissioner server-side before doing anything, and relies on ON DELETE
+// CASCADE from leagues -> every child table so one call is enough).
+export async function dbDeleteLeague(leagueId) {
+  const { error } = await supabase.rpc("delete_league", { p_league_id: leagueId });
+  if (error) throw error;
+}
+
 export async function dbGetIRConfig(leagueId) {
   const v = await dbGet(leagueId, "ir_config");
   return v ? { ...DEFAULT_IR_CONFIG, ...JSON.parse(v) } : { ...DEFAULT_IR_CONFIG };

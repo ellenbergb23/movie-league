@@ -244,14 +244,19 @@ export function CommissionerSettings({ leagueName, updateLeagueName, openScoring
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
             <p style={{ fontSize: 14, fontWeight: 600, color: openScoringMode ? t.gold : t.text, marginBottom: 4 }}>
-              {openScoringMode ? "Community Scoring Mode is ON" : "Commissioner Scoring Mode is ON"}
+              {openScoringMode ? "Open Scoring Mode is ON" : "Commissioner Scoring Mode is ON"}
             </p>
             <p style={{ fontSize: 12, color: t.textMuted, lineHeight: 1.5 }}>
               {openScoringMode ? "Anyone can edit scores, picks, and film names — no login required." : "Only logged-in members can edit. Commissioner controls scoring."}
             </p>
           </div>
-          <button onClick={toggleOpenScoringMode} style={{ fontSize: 13, padding: "8px 16px", borderRadius: 8, border: `1.5px solid ${openScoringMode ? t.gold : t.border}`, background: openScoringMode ? t.goldBg : "transparent", color: openScoringMode ? t.gold : t.textSub, cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap", marginLeft: 16 }}>
-            {openScoringMode ? "Switch to Commissioner Scoring" : "Switch to Community Scoring"}
+          <button
+            onClick={toggleOpenScoringMode}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = t.gold; e.currentTarget.style.color = t.gold; e.currentTarget.style.background = t.goldBg; }}
+            onMouseLeave={e => { if (!openScoringMode) { e.currentTarget.style.borderColor = t.border; e.currentTarget.style.color = t.textSub; e.currentTarget.style.background = "transparent"; } }}
+            style={{ fontSize: 13, padding: "8px 16px", borderRadius: 8, border: `1.5px solid ${openScoringMode ? t.gold : t.border}`, background: openScoringMode ? t.goldBg : "transparent", color: openScoringMode ? t.gold : t.textSub, cursor: "pointer", fontWeight: 600, whiteSpace: "nowrap", marginLeft: 16, transition: "border-color 0.15s, color 0.15s, background 0.15s" }}
+          >
+            {openScoringMode ? "Switch to Commissioner Scoring" : "Switch to Open Scoring"}
           </button>
         </div>
       </Card>

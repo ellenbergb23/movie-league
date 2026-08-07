@@ -217,11 +217,14 @@ export function LeagueManagement({ rules, updateScoringRules, onDirtyChange, t, 
               <button
                 key={m.id}
                 onClick={() => requestModeSwitch(m.id)}
+                onMouseEnter={e => { if (!active) { e.currentTarget.style.borderColor = t.gold; e.currentTarget.style.color = t.gold; } }}
+                onMouseLeave={e => { if (!active) { e.currentTarget.style.borderColor = t.border; e.currentTarget.style.color = t.textSub; } }}
                 style={{
                   fontSize: 12, fontWeight: 600, padding: "7px 14px", borderRadius: 4, cursor: "pointer",
                   border: `0.5px solid ${active ? t.gold : t.border}`,
                   background: active ? t.goldBg : "transparent",
                   color: active ? t.gold : t.textSub,
+                  transition: "border-color 0.15s, color 0.15s",
                 }}
               >
                 {m.label}

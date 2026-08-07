@@ -120,7 +120,9 @@ export function DraftBoard({ draft, players, movies, canEdit, isCommissioner, op
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <button
                   onClick={() => setBreakdownView(v => ({ ...v, [player]: !v[player] }))}
-                  style={{ fontSize: 9, color: t.textMuted, background: "none", border: `0.5px solid ${t.border}`, borderRadius: 4, cursor: "pointer", padding: "3px 7px", fontWeight: 600, letterSpacing: "0.03em" }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = t.gold; e.currentTarget.style.color = t.gold; }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = t.border; e.currentTarget.style.color = t.textMuted; }}
+                  style={{ fontSize: 9, color: t.textMuted, background: "none", border: `0.5px solid ${t.border}`, borderRadius: 4, cursor: "pointer", padding: "3px 7px", fontWeight: 600, letterSpacing: "0.03em", transition: "border-color 0.15s, color 0.15s" }}
                 >
                   {showBreakdown ? "poster view" : "scoring breakdown"}
                 </button>
@@ -280,7 +282,7 @@ export function DraftBoard({ draft, players, movies, canEdit, isCommissioner, op
                           {score !== null && (
                             <div style={{ width: "100%", textAlign: "center" }}>
                               {isFilmReleased(displayFilm, scoring) ? (
-                                <span style={{ fontSize: 10, fontFamily: "monospace", color: t.gold, fontWeight: 600 }}>{score} {score === 1 ? "Point" : "Points"}</span>
+                                <span style={{ fontSize: 10, fontFamily: "monospace", color: t.textSub, fontWeight: 600 }}>{score} {score === 1 ? "Point" : "Points"}</span>
                               ) : (
                                 <span style={{ fontSize: 10, color: t.textMuted, fontStyle: "italic" }}>Unreleased</span>
                               )}

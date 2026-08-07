@@ -238,7 +238,9 @@ export function DraftBoard({ draft, players, movies, canEdit, isCommissioner, op
                         {isCommissioner && (
                           <button
                             onClick={() => { if (window.confirm(`Remove ${irFilm} from IR for ${player}?`)) removeFromIR(player, irFilm); }}
-                            style={{ fontSize: 9, color: "#B71C1C", background: "none", border: `0.5px solid #B71C1C`, borderRadius: 4, cursor: "pointer", padding: "2px 6px", fontWeight: 600, marginTop: 4 }}
+                            style={{ fontSize: 9, color: "#B71C1C", background: "none", border: `0.5px solid #B71C1C`, borderRadius: 4, cursor: "pointer", padding: "2px 6px", fontWeight: 600, marginTop: 4, transition: "background 0.15s, color 0.15s" }}
+                            onMouseEnter={e => { e.currentTarget.style.background = "#B71C1C"; e.currentTarget.style.color = "#fff"; }}
+                            onMouseLeave={e => { e.currentTarget.style.background = "none"; e.currentTarget.style.color = "#B71C1C"; }}
                           >
                             remove IR
                           </button>
@@ -356,7 +358,9 @@ export function DraftBoard({ draft, players, movies, canEdit, isCommissioner, op
                   {isCommissioner && (
                     <button
                       onClick={() => { if (window.confirm(`Remove ${irFilm} from IR for ${player}?`)) removeFromIR(player, irFilm); }}
-                      style={{ fontSize: 9, color: "#B71C1C", background: "none", border: `0.5px solid #B71C1C`, borderRadius: 4, cursor: "pointer", padding: "2px 6px", fontWeight: 600 }}
+                      style={{ fontSize: 9, color: "#B71C1C", background: "none", border: `0.5px solid #B71C1C`, borderRadius: 4, cursor: "pointer", padding: "2px 6px", fontWeight: 600, transition: "background 0.15s, color 0.15s" }}
+                      onMouseEnter={e => { e.currentTarget.style.background = "#B71C1C"; e.currentTarget.style.color = "#fff"; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = "none"; e.currentTarget.style.color = "#B71C1C"; }}
                     >
                       remove IR
                     </button>

@@ -15,6 +15,7 @@ import {
 } from "./lib/db";
 import { defaultScoringRules } from "./lib/scoringRules";
 import { AuthModal } from "./components/AuthModal";
+import { CreateLeagueModal } from "./components/CreateLeagueModal";
 import { WaitingPage } from "./components/WaitingPage";
 import { Leaderboard } from "./components/Leaderboard";
 import { DraftBoard } from "./components/DraftBoard";
@@ -39,6 +40,7 @@ export default function App() {
   const [dbUser, setDbUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showCreateLeagueModal, setShowCreateLeagueModal] = useState(false);
 
   const [players, setPlayers] = useState([...DEFAULT_PLAYERS]);
   const [draft, setDraft] = useState(() => { const d = {}; DEFAULT_PLAYERS.forEach(p => { d[p] = Array(9).fill(""); }); return d; });
@@ -650,6 +652,7 @@ export default function App() {
       <style>{css}</style>
 
       {showAuthModal && <AuthModal t={t} onAuth={user => { setAuthUser(user); setShowAuthModal(false); }} onClose={() => setShowAuthModal(false)} />}
+      {showCreateLeagueModal && <CreateLeagueModal t={t} authUser={authUser} onClose={() => setShowCreateLeagueModal(false)} showToast={showToast} />}
       {toast && <div style={{ position: "fixed", top: 16, right: 16, background: t.gold, color: darkMode ? "#0A0A0A" : "#fff", padding: "9px 14px", borderRadius: 8, fontSize: 13, fontWeight: 500, zIndex: 999 }}>{toast}</div>}
 
       <header style={{ background: t.header, borderBottom: `0.5px solid ${t.border}`, padding: "0 1.5rem", display: "flex", alignItems: "center", justifyContent: "space-between", height: 68 }}>
@@ -668,6 +671,7 @@ export default function App() {
                 <div style={{ fontFamily: FONT_SERIF, fontSize: 13, color: t.text }}>{myPlayerName || (isCommissioner ? "Commissioner" : authUser.email)}</div>
                 {isCommissioner && <div style={{ fontSize: 10, color: t.gold, border: `0.5px solid ${t.gold}`, borderRadius: 10, padding: "1px 7px", display: "inline-block", marginTop: 2 }}>Commissioner</div>}
               </div>
+              <button onClick={() => setShowCreateLeagueModal(true)} style={{ background: "none", border: `0.5px solid ${t.border}`, borderRadius: 6, padding: "5px 10px", fontSize: 12, color: t.textMuted, cursor: "pointer" }}>+ New League</button>
               <button onClick={signOut} style={{ background: "none", border: `0.5px solid ${t.border}`, borderRadius: 6, padding: "5px 10px", fontSize: 12, color: t.textMuted, cursor: "pointer" }}>Sign out</button>
             </>
           ) : (

@@ -91,6 +91,51 @@ export async function dbGetReplacements() {
 export async function dbSetReplacements(replacements) {
   await dbSet("ir_replacements", JSON.stringify(replacements));
 }
+function slugify(name) {
+  return (name || "league").toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "").slice(0, 30) || "league";
+}
+function randomJoinCode(len = 6) {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no ambiguous chars (0/O, 1/I)
+  let out = "";
+  for (let i = 0; i < len; i++) out += chars[Math.floor(Math.random() * chars.length)];
+  return out;
+}
+
+// Creates a new league: the creating user becomes commissioner and occupies
+// one of the team_count slots; the remaining (team_count - 1) slots are
+// created empty for others to self-claim later (Step 2c).
+export async function dbCreateLeague(creatorUserId, { name, teamCount, filmsPerTeam, visibility }) {
+  const id = `${slugify(name)}-${Math.random().toString(36).slice(2, 6)}`;
+
+  let joinCode = randomJoinCode();
+  for (let i = 0; i < 5; i++) {
+    const { data: existing } = await supabase.from("leagues").select("id").eq("join_code", joinCode).maybeSingle();
+    if (!existing) break;
+    joinCode = randomJoinCode();
+  }
+
+  const { error: leagueErr } = await supabase.from("leagues").insert({
+    id,
+    name,
+    year: String(new Date().getFullYear()),
+    join_code: joinCode,
+    visibility: visibility === "public" ? "public" : "private",
+    created_by: creatorUserId,
+    films_per_team: filmsPerTeam,
+    team_count: teamCount,
+  });
+  if (leagueErr) throw leagueErr;
+
+  const rows = [{ user_id: creatorUserId, league_id: id, role: "commissioner", player_name: null, team_color: null }];
+  for (let i = 1; i < teamCount; i++) {
+    rows.push({ user_id: null, league_id: id, role: "player", player_name: null, team_color: null });
+  }
+  const { error: membersErr } = await supabase.from("league_members").insert(rows);
+  if (membersErr) throw membersErr;
+
+  return { id, joinCode };
+}
+
 export async function dbGetIRConfig() {
   const v = await dbGet("ir_config");
   return v ? { ...DEFAULT_IR_CONFIG, ...JSON.parse(v) } : { ...DEFAULT_IR_CONFIG };

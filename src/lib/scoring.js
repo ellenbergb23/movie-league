@@ -1,14 +1,5 @@
 import { DEFAULT_SCORING_RULES, getBOTierPointsByLabel, getBOBonusPoints, getCriticsPoints, getAudiencePoints } from "./scoringRules";
 
-// Legacy string-encoded RT points, kept only as a fallback for old rows saved before
-// per-film raw % values (criticsRTRaw / audienceRTRaw) existed.
-export function getRTPoints(c, a) {
-  let p = 0;
-  if (c === "90%+ (7pts)") p += 7;
-  else if (c === "Fresh 60-89% (2pts)") p += 2;
-  if (a === "90%+ (5pts)") p += 5;
-  return p;
-}
 export function getBOPoints(label, rules = DEFAULT_SCORING_RULES) { return getBOTierPointsByLabel(label, rules.boTiers); }
 
 export function calcFilmScore(film, scoring, rules = DEFAULT_SCORING_RULES) {
@@ -19,13 +10,11 @@ export function calcFilmScore(film, scoring, rules = DEFAULT_SCORING_RULES) {
   const boTiersOn = rules.boTiersEnabled !== false;
   let total = boTiersOn ? (getBOPoints(fs.bo || "", rules) + getBOBonusPoints(revenueMillions, rules.boBonuses)) : 0;
 
-  // Prefer raw % scores against current breakpoints (keeps scores retroactively accurate
-  // when a commissioner edits breakpoints); fall back to legacy stored string tiers.
-  if (fs.criticsRTRaw != null || fs.audienceRTRaw != null) {
-    total += getCriticsPoints(fs.criticsRTRaw, rules) + getAudiencePoints(fs.audienceRTRaw, rules);
-  } else {
-    total += getRTPoints(fs.criticsRT || "", fs.audienceRT || "");
-  }
+  // RT points come only from raw % fields, scored against current breakpoints (keeps scores
+  // retroactively accurate when a commissioner edits breakpoints). Legacy string-tier fields
+  // (criticsRT / audienceRT) are no longer used to score — missing raw % means 0 RT points,
+  // even if stale legacy data is present.
+  total += getCriticsPoints(fs.criticsRTRaw, rules) + getAudiencePoints(fs.audienceRTRaw, rules);
 
   const oscarCats = rules.oscarCategories || DEFAULT_SCORING_RULES.oscarCategories;
   oscarCats.forEach((cat, i) => {
@@ -56,15 +45,10 @@ export function getFilmScoreBreakdown(film, scoring, rules = DEFAULT_SCORING_RUL
     if (fs.bo && boPts > 0) items.push({ label: "Box Office", value: fs.bo, pts: boPts });
   }
 
-  if (fs.criticsRTRaw != null || fs.audienceRTRaw != null) {
-    const criticsPts = getCriticsPoints(fs.criticsRTRaw, rules);
-    const audiencePts = getAudiencePoints(fs.audienceRTRaw, rules);
-    if (criticsPts > 0) items.push({ label: "Critics (RT)", value: `${fs.criticsRTRaw}%+`, pts: criticsPts });
-    if (audiencePts > 0) items.push({ label: "Audience (RT)", value: `${fs.audienceRTRaw}%+`, pts: audiencePts });
-  } else {
-    const legacyPts = getRTPoints(fs.criticsRT || "", fs.audienceRT || "");
-    if (legacyPts > 0) items.push({ label: "Critics/Audience (RT)", value: "", pts: legacyPts });
-  }
+  const criticsPts = getCriticsPoints(fs.criticsRTRaw, rules);
+  const audiencePts = getAudiencePoints(fs.audienceRTRaw, rules);
+  if (criticsPts > 0) items.push({ label: "Critics (RT)", value: `${fs.criticsRTRaw}%+`, pts: criticsPts });
+  if (audiencePts > 0) items.push({ label: "Audience (RT)", value: `${fs.audienceRTRaw}%+`, pts: audiencePts });
 
   const oscarCats = rules.oscarCategories || DEFAULT_SCORING_RULES.oscarCategories;
   oscarCats.forEach((cat, i) => {

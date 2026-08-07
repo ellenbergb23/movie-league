@@ -5,8 +5,12 @@ import { leaguePath } from "../lib/router";
 
 // A small dropdown, meant for the header, that lists the leagues the signed-in
 // user belongs to and lets them jump straight to one. currentLeagueId (optional)
-// highlights whichever league is currently being viewed.
-export function LeagueSwitcher({ authUser, darkMode, navigate, currentLeagueId, onShowJoinLeagueModal }) {
+// highlights whichever league is currently being viewed. currentLeagueName
+// (optional) overrides the displayed name for that one entry with the live
+// value from the page you're on — the fetched `leagues` list is only loaded
+// once per mount, so without this a rename made via Commissioner Settings on
+// this same page wouldn't show up here until a full reload.
+export function LeagueSwitcher({ authUser, darkMode, navigate, currentLeagueId, currentLeagueName, onShowJoinLeagueModal }) {
   const [leagues, setLeagues] = useState([]);
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -44,7 +48,7 @@ export function LeagueSwitcher({ authUser, darkMode, navigate, currentLeagueId, 
                 onClick={() => { setOpen(false); navigate(leaguePath(league.id)); }}
                 style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", textAlign: "left", padding: "9px 14px", fontSize: 13, color: league.id === currentLeagueId ? t.gold : t.text, fontWeight: league.id === currentLeagueId ? 600 : 400, background: "none", border: "none", borderBottom: `0.5px solid ${t.border}`, cursor: "pointer" }}
               >
-                <span>{league.name}</span>
+                <span>{league.id === currentLeagueId && currentLeagueName ? currentLeagueName : league.name}</span>
                 {league.id === currentLeagueId && <span style={{ fontSize: 11 }}>●</span>}
               </button>
             ))
